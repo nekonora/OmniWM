@@ -257,6 +257,26 @@ private func prepareIPCNiriState(
         #expect(controller.workspaceManager.workspace(for: token) == targetWorkspaceId)
     }
 
+    @Test func moveWindowDownOrToWorkspaceDownFallsBackAtColumnEdge() throws {
+        let controller = makeLayoutPlanTestController()
+        let router = makeIPCCommandRouter(for: controller)
+        let sourceWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        let targetWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "2", createIfMissing: false))
+        let handles = prepareIPCNiriState(
+            on: controller,
+            assignments: [
+                (sourceWorkspaceId, 2101)
+            ],
+            focusedWindowId: 2101
+        )
+        let token = try #require(handles[2101]).id
+
+        let result = router.handle(.moveWindowDownOrToWorkspaceDown)
+
+        #expect(result == .executed)
+        #expect(controller.workspaceManager.workspace(for: token) == targetWorkspaceId)
+    }
+
     @Test func moveToWorkspaceOnMonitorRejectsWorkspaceOnWrongAdjacentMonitor() throws {
         let primaryMonitor = makeLayoutPlanPrimaryTestMonitor(name: "Primary")
         let secondaryMonitor = makeLayoutPlanSecondaryTestMonitor(name: "Secondary", x: 1920)

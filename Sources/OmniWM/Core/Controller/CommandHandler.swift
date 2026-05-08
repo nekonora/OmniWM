@@ -41,6 +41,14 @@ final class CommandHandler {
             focusPreviousInNiri()
         case let .move(direction):
             moveWindow(direction: direction)
+        case .moveWindowDown:
+            controller.niriLayoutHandler.moveWindow(direction: .down)
+        case .moveWindowUp:
+            controller.niriLayoutHandler.moveWindow(direction: .up)
+        case .moveWindowDownOrToWorkspaceDown:
+            controller.niriLayoutHandler.moveWindowOrToAdjacentWorkspace(direction: .down)
+        case .moveWindowUpOrToWorkspaceUp:
+            controller.niriLayoutHandler.moveWindowOrToAdjacentWorkspace(direction: .up)
         case let .moveToWorkspace(index):
             controller.workspaceNavigationHandler.moveFocusedWindow(toWorkspaceIndex: index)
         case .moveWindowToWorkspaceUp:
@@ -422,23 +430,7 @@ final class CommandHandler {
     }
 
     private func moveWindowInNiri(direction: Direction) {
-        guard let controller else { return }
-        controller.niriLayoutHandler.withNiriOperationContext { ctx, state in
-            let oldFrames = direction == .left || direction == .right
-                ? [:]
-                : ctx.engine.captureWindowFrames(in: ctx.wsId)
-            guard ctx.engine.moveWindow(
-                ctx.windowNode, direction: direction, in: ctx.wsId,
-                motion: ctx.motion,
-                state: &state,
-                workingFrame: ctx.workingFrame,
-                gaps: ctx.gaps
-            ) else { return false }
-            if direction == .left || direction == .right {
-                return ctx.commitSimple(state: state)
-            }
-            return ctx.commitWithPredictedAnimation(state: state, oldFrames: oldFrames)
-        }
+        controller?.niriLayoutHandler.moveWindow(direction: direction)
     }
 
     private func toggleNativeFullscreenForFocused() {

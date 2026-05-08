@@ -28,6 +28,10 @@ enum HotkeyCommand: Codable, Equatable, Hashable {
     case moveColumnToFirst
     case moveColumnToLast
     case moveColumnToIndex(Int)
+    case moveWindowDown
+    case moveWindowUp
+    case moveWindowDownOrToWorkspaceDown
+    case moveWindowUpOrToWorkspaceUp
     case toggleColumnTabbed
 
     case focusDownOrLeft

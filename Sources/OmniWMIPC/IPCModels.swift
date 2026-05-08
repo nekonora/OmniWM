@@ -226,6 +226,10 @@ public enum IPCCommandName: String, Codable, CaseIterable, Equatable, Sendable {
     case focusColumnFirst = "focus-column-first"
     case focusColumnLast = "focus-column-last"
     case move
+    case moveWindowDown = "move-window-down"
+    case moveWindowUp = "move-window-up"
+    case moveWindowDownOrToWorkspaceDown = "move-window-down-or-to-workspace-down"
+    case moveWindowUpOrToWorkspaceUp = "move-window-up-or-to-workspace-up"
     case switchWorkspace = "switch-workspace"
     case switchWorkspaceNext = "switch-workspace-next"
     case switchWorkspacePrevious = "switch-workspace-previous"
@@ -343,6 +347,10 @@ public enum IPCCommandRequest: Equatable, Sendable {
     case focusColumnFirst
     case focusColumnLast
     case move(direction: IPCDirection)
+    case moveWindowDown
+    case moveWindowUp
+    case moveWindowDownOrToWorkspaceDown
+    case moveWindowUpOrToWorkspaceUp
     case switchWorkspace(workspaceNumber: Int)
     case switchWorkspaceNext
     case switchWorkspacePrevious
@@ -427,6 +435,14 @@ public enum IPCCommandRequest: Equatable, Sendable {
             .focusColumnLast
         case .move:
             .move
+        case .moveWindowDown:
+            .moveWindowDown
+        case .moveWindowUp:
+            .moveWindowUp
+        case .moveWindowDownOrToWorkspaceDown:
+            .moveWindowDownOrToWorkspaceDown
+        case .moveWindowUpOrToWorkspaceUp:
+            .moveWindowUpOrToWorkspaceUp
         case .switchWorkspace:
             .switchWorkspace
         case .switchWorkspaceNext:
@@ -631,6 +647,18 @@ public enum IPCCommandRequest: Equatable, Sendable {
             self = .focusColumnLast
         case .move:
             self = .move(direction: try requireDirection())
+        case .moveWindowDown:
+            try requireNoArguments()
+            self = .moveWindowDown
+        case .moveWindowUp:
+            try requireNoArguments()
+            self = .moveWindowUp
+        case .moveWindowDownOrToWorkspaceDown:
+            try requireNoArguments()
+            self = .moveWindowDownOrToWorkspaceDown
+        case .moveWindowUpOrToWorkspaceUp:
+            try requireNoArguments()
+            self = .moveWindowUpOrToWorkspaceUp
         case .switchWorkspace:
             self = .switchWorkspace(workspaceNumber: try requireInteger())
         case .switchWorkspaceNext:
@@ -866,6 +894,14 @@ extension IPCCommandRequest: Codable {
         case .move:
             let arguments = try container.decode(IPCDirectionArguments.self, forKey: .arguments)
             self = .move(direction: arguments.direction)
+        case .moveWindowDown:
+            self = .moveWindowDown
+        case .moveWindowUp:
+            self = .moveWindowUp
+        case .moveWindowDownOrToWorkspaceDown:
+            self = .moveWindowDownOrToWorkspaceDown
+        case .moveWindowUpOrToWorkspaceUp:
+            self = .moveWindowUpOrToWorkspaceUp
         case .switchWorkspace:
             let arguments = try container.decode(IPCWorkspaceNumberArguments.self, forKey: .arguments)
             self = .switchWorkspace(workspaceNumber: arguments.workspaceNumber)
@@ -1024,6 +1060,14 @@ extension IPCCommandRequest: Codable {
             break
         case let .move(direction):
             try container.encode(IPCDirectionArguments(direction: direction), forKey: .arguments)
+        case .moveWindowDown:
+            break
+        case .moveWindowUp:
+            break
+        case .moveWindowDownOrToWorkspaceDown:
+            break
+        case .moveWindowUpOrToWorkspaceUp:
+            break
         case let .switchWorkspace(workspaceNumber):
             try container.encode(IPCWorkspaceNumberArguments(workspaceNumber: workspaceNumber), forKey: .arguments)
         case .switchWorkspaceNext:

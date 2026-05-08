@@ -12,6 +12,13 @@ private func hasPendingNiriAnimationWork(
         || engine.hasAnyColumnAnimationsRunning(in: workspaceId)
 }
 
+enum NiriWindowMoveResult {
+    case moved
+    case atColumnEdge
+    case notFound
+    case blocked
+}
+
 @MainActor final class NiriLayoutHandler {
     weak var controller: WMController?
 
@@ -1441,6 +1448,59 @@ private func hasPendingNiriAnimationWork(
 
         if let wsId = animatingWorkspaceId {
             controller.layoutRefreshController.startScrollAnimation(for: wsId)
+        }
+    }
+
+    @discardableResult
+    func moveWindow(direction: Direction) -> NiriWindowMoveResult {
+        var result = NiriWindowMoveResult.notFound
+
+        withNiriOperationContext { ctx, state in
+            let edgeResult = windowMoveEdgeResult(for: ctx.windowNode, direction: direction)
+            let oldFrames = direction == .left || direction == .right
+                ? [:]
+                : ctx.engine.captureWindowFrames(in: ctx.wsId)
+            guard ctx.engine.moveWindow(
+                ctx.windowNode,
+                direction: direction,
+                in: ctx.wsId,
+                motion: ctx.motion,
+                state: &state,
+                workingFrame: ctx.workingFrame,
+                gaps: ctx.gaps
+            ) else {
+                result = edgeResult
+                return false
+            }
+
+            result = .moved
+            if direction == .left || direction == .right {
+                return ctx.commitSimple(state: state)
+            }
+            return ctx.commitWithPredictedAnimation(state: state, oldFrames: oldFrames)
+        }
+
+        return result
+    }
+
+    func moveWindowOrToAdjacentWorkspace(direction: Direction) {
+        guard direction == .down || direction == .up else { return }
+        guard moveWindow(direction: direction) == .atColumnEdge else { return }
+        controller?.workspaceNavigationHandler.moveWindowToAdjacentWorkspace(direction: direction)
+    }
+
+    private func windowMoveEdgeResult(for node: NiriWindow, direction: Direction) -> NiriWindowMoveResult {
+        guard node.parent is NiriContainer else {
+            return .blocked
+        }
+
+        switch direction {
+        case .down:
+            return node.prevSibling() == nil ? .atColumnEdge : .blocked
+        case .up:
+            return node.nextSibling() == nil ? .atColumnEdge : .blocked
+        case .left, .right:
+            return .blocked
         }
     }
 

@@ -67,6 +67,27 @@ import OmniWMIPC
         #expect(indexedCommand == .moveColumnToIndex(columnIndex: 3))
     }
 
+    @Test func parsesNiriWindowMoveCommands() throws {
+        let down = try CLIParser.parse(arguments: ["omniwmctl", "command", "move-window-down"])
+        let up = try CLIParser.parse(arguments: ["omniwmctl", "command", "move-window-up"])
+        let downFallback = try CLIParser.parse(arguments: ["omniwmctl", "command", "move-window-down-or-to-workspace-down"])
+        let upFallback = try CLIParser.parse(arguments: ["omniwmctl", "command", "move-window-up-or-to-workspace-up"])
+
+        guard case let .command(downCommand) = down.request.payload,
+              case let .command(upCommand) = up.request.payload,
+              case let .command(downFallbackCommand) = downFallback.request.payload,
+              case let .command(upFallbackCommand) = upFallback.request.payload
+        else {
+            Issue.record("Expected command payloads")
+            return
+        }
+
+        #expect(downCommand == .moveWindowDown)
+        #expect(upCommand == .moveWindowUp)
+        #expect(downFallbackCommand == .moveWindowDownOrToWorkspaceDown)
+        #expect(upFallbackCommand == .moveWindowUpOrToWorkspaceUp)
+    }
+
     @Test func parsesResizeCommand() throws {
         let parsed = try CLIParser.parse(arguments: ["omniwmctl", "command", "resize", "left", "grow"])
 

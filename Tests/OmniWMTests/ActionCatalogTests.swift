@@ -53,4 +53,14 @@ import Testing
         #expect(indexed.ipcCommandName == .moveColumnToIndex)
         #expect(indexed.ipcDescriptor?.path == "command move-column-to-index <number>")
     }
+
+    @Test func niriWindowMoveActionsUsePublicCommandDescriptors() throws {
+        let down = try #require(ActionCatalog.spec(for: "moveWindowDown"))
+        let fallback = try #require(ActionCatalog.spec(for: "moveWindowDownOrToWorkspaceDown"))
+
+        #expect(down.ipcCommandName == .moveWindowDown)
+        #expect(down.ipcDescriptor?.path == "command move-window-down")
+        #expect(fallback.ipcCommandName == .moveWindowDownOrToWorkspaceDown)
+        #expect(fallback.ipcDescriptor?.path == "command move-window-down-or-to-workspace-down")
+    }
 }

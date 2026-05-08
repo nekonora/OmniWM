@@ -195,6 +195,13 @@ enum ActionCatalog {
         ])
 
         specs.append(contentsOf: [
+            action(id: "moveWindowDown", command: .moveWindowDown, category: .move, binding: .unassigned),
+            action(id: "moveWindowUp", command: .moveWindowUp, category: .move, binding: .unassigned),
+            action(id: "moveWindowDownOrToWorkspaceDown", command: .moveWindowDownOrToWorkspaceDown, category: .move, binding: .unassigned),
+            action(id: "moveWindowUpOrToWorkspaceUp", command: .moveWindowUpOrToWorkspaceUp, category: .move, binding: .unassigned),
+        ])
+
+        specs.append(contentsOf: [
             action(id: "focusMonitorNext", command: .focusMonitorNext, category: .monitor, binding: KeyBinding(keyCode: UInt32(kVK_Tab), modifiers: UInt32(controlKey | cmdKey))),
             action(id: "focusMonitorPrevious", command: .focusMonitorPrevious, category: .monitor, binding: .unassigned),
             action(id: "focusMonitorLast", command: .focusMonitorLast, category: .monitor, binding: KeyBinding(keyCode: UInt32(kVK_ANSI_Grave), modifiers: UInt32(controlKey | cmdKey))),
@@ -326,7 +333,9 @@ enum ActionCatalog {
         case .moveToRoot, .toggleSplit, .swapSplit, .preselect, .preselectClear, .resizeInDirection:
             .dwindle
 
-        case .moveColumn, .moveColumnToFirst, .moveColumnToLast, .moveColumnToIndex,
+        case .moveWindowDown, .moveWindowUp,
+             .moveWindowDownOrToWorkspaceDown, .moveWindowUpOrToWorkspaceUp,
+             .moveColumn, .moveColumnToFirst, .moveColumnToLast, .moveColumnToIndex,
              .moveColumnToWorkspace, .moveColumnToWorkspaceUp, .moveColumnToWorkspaceDown,
              .toggleColumnFullWidth, .toggleColumnTabbed,
              .cycleWindowWidthForward, .cycleWindowWidthBackward,
@@ -381,6 +390,10 @@ enum ActionCatalog {
         case .moveColumnToFirst: "Move Column to First"
         case .moveColumnToLast: "Move Column to Last"
         case let .moveColumnToIndex(idx): "Move Column to Index \(idx)"
+        case .moveWindowDown: "Move Window Down"
+        case .moveWindowUp: "Move Window Up"
+        case .moveWindowDownOrToWorkspaceDown: "Move Window Down or to Workspace Down"
+        case .moveWindowUpOrToWorkspaceUp: "Move Window Up or to Workspace Up"
         case .toggleColumnTabbed: "Toggle Column Tabbed"
         case .focusDownOrLeft: "Traverse Backward"
         case .focusUpOrRight: "Traverse Forward"
@@ -458,6 +471,14 @@ enum ActionCatalog {
             .focusColumnLast
         case .move:
             .move
+        case .moveWindowDown:
+            .moveWindowDown
+        case .moveWindowUp:
+            .moveWindowUp
+        case .moveWindowDownOrToWorkspaceDown:
+            .moveWindowDownOrToWorkspaceDown
+        case .moveWindowUpOrToWorkspaceUp:
+            .moveWindowUpOrToWorkspaceUp
         case .switchWorkspace:
             .switchWorkspace
         case .switchWorkspaceNext:
