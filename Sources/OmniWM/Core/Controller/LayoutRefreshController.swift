@@ -101,8 +101,6 @@ import QuartzCore
     weak var controller: WMController?
     static let hiddenWindowEdgeRevealEpsilon: CGFloat = 1.0
     private static let delayedRevealVerificationDelay: Duration = .milliseconds(50)
-    private static let revealTraceLoggingEnabled =
-        ProcessInfo.processInfo.environment["OMNIWM_DEBUG_SCRATCHPAD_REVEAL"] == "1"
 
     enum HideReason {
         case workspaceInactive
@@ -2334,8 +2332,10 @@ import QuartzCore
     ) -> Bool {
         if var pendingTransaction = pendingRevealTransactionsByWindowId[entry.windowId] {
             if let onSuccess {
-                pendingTransaction.postSuccessActions.append(onSuccess)
-                pendingRevealTransactionsByWindowId[entry.windowId] = pendingTransaction
+                if !pendingTransaction.hiddenState.isScratchpad || pendingTransaction.postSuccessActions.isEmpty {
+                    pendingTransaction.postSuccessActions.append(onSuccess)
+                    pendingRevealTransactionsByWindowId[entry.windowId] = pendingTransaction
+                }
             }
             return false
         }
@@ -2375,10 +2375,6 @@ import QuartzCore
                 scheduleDelayedRevealVerification(forWindowId: newWindowId)
             }
         }
-
-        recordRevealTrace(
-            "rekey oldWindowId=\(oldWindowId) newWindowId=\(newWindowId) tokenPid=\(newToken.pid)"
-        )
     }
 
     func cancelPendingScratchpadReveal(for token: WindowToken) {
@@ -2398,11 +2394,6 @@ import QuartzCore
         }
 
         let outcome = hiddenRevealTerminalOutcome(for: result, transaction: transaction)
-        recordRevealTrace(
-            "terminal windowId=\(result.windowId) requestId=\(result.requestId) " +
-                "failure=\(String(describing: result.writeResult.failureReason)) " +
-                "confirmed=\(result.confirmedFrame != nil)"
-        )
 
         switch outcome {
         case .success:
@@ -2432,8 +2423,11 @@ import QuartzCore
             guard let failureReason = result.writeResult.failureReason else {
                 return .success
             }
+            if isConfirmedRevealFailureTerminal(failureReason) {
+                return .failure
+            }
             if transaction.hiddenState.isScratchpad {
-                return isConfirmedScratchpadRevealFailureRecoverable(failureReason) ? .delayedVerification : .failure
+                return .delayedVerification
             }
             return .success
         }
@@ -2457,13 +2451,13 @@ import QuartzCore
         }
     }
 
-    private func isConfirmedScratchpadRevealFailureRecoverable(_ failureReason: AXFrameWriteFailureReason) -> Bool {
+    private func isConfirmedRevealFailureTerminal(_ failureReason: AXFrameWriteFailureReason) -> Bool {
         switch failureReason {
         case .cancelled,
              .suppressed:
-            return false
-        default:
             return true
+        default:
+            return false
         }
     }
 
@@ -2523,9 +2517,6 @@ import QuartzCore
             try? await Task.sleep(for: Self.delayedRevealVerificationDelay)
             guard let self else { return }
             let verifiedFrame = self.delayedVerifiedRevealFrame(forWindowId: windowId)
-            self.recordRevealTrace(
-                "delayedVerification windowId=\(windowId) success=\(verifiedFrame != nil)"
-            )
             if let verifiedFrame {
                 self.finalizePendingRevealTransactionSuccess(
                     forWindowId: windowId,
@@ -2558,11 +2549,6 @@ import QuartzCore
         return observedFrame
     }
 
-    private func recordRevealTrace(_ message: String) {
-        guard Self.revealTraceLoggingEnabled else { return }
-        fputs("[ScratchpadReveal] \(message)\n", stderr)
-    }
-
     private func executeHiddenReveal(
         _ entry: WindowModel.Entry,
         monitor: Monitor,
@@ -2573,9 +2559,6 @@ import QuartzCore
         let frameEntry = [(entry.handle.pid, entry.windowId)]
         switch restoreWindowFromHiddenState(entry, monitor: monitor, hiddenState: hiddenState) {
         case .none:
-            recordRevealTrace(
-                "start windowId=\(entry.windowId) mode=none outcome=noGeometry"
-            )
             if hiddenState.workspaceInactive {
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
                 controller.axManager.unsuppressFrameWrites(frameEntry)
@@ -2586,9 +2569,6 @@ import QuartzCore
                 return false
             }
         case let .positionPlan(plan):
-            recordRevealTrace(
-                "start windowId=\(entry.windowId) mode=positionPlan"
-            )
             applyPositionPlans([plan])
             controller.workspaceManager.setHiddenState(nil, for: entry.token)
             controller.axManager.unsuppressFrameWrites(frameEntry)
@@ -2596,9 +2576,6 @@ import QuartzCore
             return true
         case let .asyncFrame(frame):
             if !shouldUsePendingRevealTransaction(for: entry, hiddenState: hiddenState) {
-                recordRevealTrace(
-                    "start windowId=\(entry.windowId) mode=asyncFrame immediate targetFrame=\(NSStringFromRect(frame))"
-                )
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
                 controller.axManager.unsuppressFrameWrites(frameEntry)
                 controller.axManager.forceApplyNextFrame(for: entry.windowId)
@@ -2615,9 +2592,6 @@ import QuartzCore
             ) else {
                 return true
             }
-            recordRevealTrace(
-                "start windowId=\(entry.windowId) mode=asyncFrame targetFrame=\(NSStringFromRect(frame))"
-            )
             controller.axManager.unsuppressFrameWrites(frameEntry)
             controller.axManager.forceApplyNextFrame(for: entry.windowId)
             controller.axManager.applyFramesParallel(

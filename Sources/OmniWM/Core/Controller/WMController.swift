@@ -25,9 +25,6 @@ struct WindowFocusOperations {
 
 @MainActor @Observable
 final class WMController {
-    private static let frontingTraceLoggingEnabled =
-        ProcessInfo.processInfo.environment["OMNIWM_DEBUG_SCRATCHPAD_REVEAL"] == "1"
-
     struct WorkspaceBarRefreshDebugState {
         var requestCount: Int = 0
         var scheduledCount: Int = 0
@@ -2206,15 +2203,9 @@ extension WMController {
         windowId: Int,
         axRef: AXWindowRef
     ) {
-        recordFrontingTrace(pid: pid, windowId: windowId)
         windowFocusOperations.activateApp(pid)
         windowFocusOperations.focusSpecificWindow(pid, UInt32(windowId), axRef.element)
         windowFocusOperations.raiseWindow(axRef.element)
-    }
-
-    private func recordFrontingTrace(pid: pid_t, windowId: Int) {
-        guard Self.frontingTraceLoggingEnabled else { return }
-        fputs("[ScratchpadFronting] pid=\(pid) windowId=\(windowId)\n", stderr)
     }
 
     func restoreQuakeTerminalFocus(to target: QuakeTerminalRestoreTarget) {

@@ -308,6 +308,10 @@ private func setScratchpadTestFrame(
             #expect(sawWriteStart)
             #expect(recorder.events.isEmpty)
 
+            controller.toggleScratchpadWindow()
+            controller.toggleScratchpadWindow()
+            #expect(recorder.events.isEmpty)
+
             releaseWrite.signal()
 
             let delayedReveal = await waitForConditionForTests(timeoutNanoseconds: 5_000_000_000) {
@@ -322,6 +326,7 @@ private func setScratchpadTestFrame(
 
             let observedFronting = await waitForConditionForTests(timeoutNanoseconds: 5_000_000_000) {
                 recorder.events.count == 3
+                    && controller.workspaceManager.hiddenState(for: token) == nil
             }
 
             #expect(observedFronting)
