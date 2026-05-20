@@ -349,6 +349,23 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(MouseEventHandler.mouseWheelModifiersMatch([.maskAlternate], required: required) == false)
     }
 
+    @Test func mouseResizeModifierMappingsMatchExactly() {
+        let relevantFlags: [CGEventFlags] = [.maskAlternate, .maskControl, .maskCommand, .maskShift]
+
+        for key in MouseResizeModifierKey.allCases {
+            let required = key.cgEventFlag
+            #expect(MouseEventHandler.modifierFlagsMatch(required, required: required))
+
+            for flag in relevantFlags where required.contains(flag) {
+                #expect(MouseEventHandler.modifierFlagsMatch(required.subtracting(flag), required: required) == false)
+            }
+
+            if let extraFlag = relevantFlags.first(where: { !required.contains($0) }) {
+                #expect(MouseEventHandler.modifierFlagsMatch(required.union(extraFlag), required: required) == false)
+            }
+        }
+    }
+
     @Test @MainActor func mouseWheelHorizontalAxisWinsAndFocusesNextColumn() async {
         let fixture = await prepareMouseWheelScrollFixture()
         let before = fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
@@ -802,6 +819,60 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         #expect(fixture.handler.state.isResizing == false)
         #expect(engine.interactiveResize == nil)
         #expect(abs(column.cachedWidth - expectedWidth) < 0.001)
+    }
+
+    @Test @MainActor func configuredRightMouseResizeModifierStartsResize() async {
+        let fixture = await prepareMouseResizeFixture()
+        guard let engine = fixture.controller.niriEngine,
+              let resizeWindow = engine.findNode(for: fixture.handle),
+              let column = engine.findColumn(containing: resizeWindow, in: fixture.workspaceId),
+              let monitor = fixture.controller.workspaceManager.monitor(for: fixture.workspaceId)
+        else {
+            Issue.record("Missing Niri resize state")
+            return
+        }
+
+        fixture.controller.settings.mouseResizeModifierKey = .controlShift
+        let originalWidth = column.cachedWidth
+        let insetFrame = fixture.controller.insetWorkingFrame(for: monitor)
+        let maxWidth = insetFrame.width - CGFloat(fixture.controller.workspaceManager.gaps)
+        let expectedWidth = min(originalWidth + 24, maxWidth)
+        let start = CGPoint(x: fixture.nodeFrame.maxX - 20, y: fixture.nodeFrame.midY)
+        let end = CGPoint(x: start.x + 24, y: start.y)
+
+        fixture.handler.pressedMouseButtonsProvider = { 2 }
+        fixture.handler.dispatchMouseDown(at: start, modifiers: [.maskControl, .maskShift], button: .right)
+        fixture.handler.dispatchMouseDragged(at: end, button: .right)
+        fixture.handler.pressedMouseButtonsProvider = { 0 }
+        fixture.handler.dispatchMouseUp(at: end, button: .right)
+        await fixture.controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(fixture.handler.state.isResizing == false)
+        #expect(engine.interactiveResize == nil)
+        #expect(abs(column.cachedWidth - expectedWidth) < 0.001)
+    }
+
+    @Test @MainActor func configuredRightMouseResizeModifierRejectsDefaultAndExtraModifiers() async {
+        let fixture = await prepareMouseResizeFixture()
+        guard let engine = fixture.controller.niriEngine else {
+            Issue.record("Missing Niri engine")
+            return
+        }
+
+        fixture.controller.settings.mouseResizeModifierKey = .controlShift
+        let start = CGPoint(x: fixture.nodeFrame.maxX - 20, y: fixture.nodeFrame.midY)
+
+        fixture.handler.dispatchMouseDown(at: start, modifiers: [.maskAlternate], button: .right)
+        #expect(fixture.handler.state.isResizing == false)
+        #expect(engine.interactiveResize == nil)
+
+        fixture.handler.dispatchMouseDown(
+            at: start,
+            modifiers: [.maskControl, .maskShift, .maskAlternate],
+            button: .right
+        )
+        #expect(fixture.handler.state.isResizing == false)
+        #expect(engine.interactiveResize == nil)
     }
 
     @Test @MainActor func optionRightMouseDragStartsAndUpdatesResizeFromPlaceholder() async {

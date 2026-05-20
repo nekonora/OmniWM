@@ -106,6 +106,7 @@ struct SettingsExport: Equatable {
     var scrollGestureEnabled: Bool
     var scrollSensitivity: Double
     var scrollModifierKey: String
+    var mouseResizeModifierKey: String
     var gestureFingerCount: Int
     var gestureInvertDirection: Bool
     var statusBarShowWorkspaceName: Bool
@@ -210,6 +211,7 @@ extension SettingsExport {
             scrollGestureEnabled: true,
             scrollSensitivity: 5.0,
             scrollModifierKey: ScrollModifierKey.optionShift.rawValue,
+            mouseResizeModifierKey: MouseResizeModifierKey.option.rawValue,
             gestureFingerCount: GestureFingerCount.three.rawValue,
             gestureInvertDirection: true,
             statusBarShowWorkspaceName: false,

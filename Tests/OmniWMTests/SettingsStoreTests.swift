@@ -309,6 +309,7 @@ struct SettingsExportTests {
         #expect(defaults.updateChecksEnabled == true)
         #expect(defaults.ipcEnabled == false)
         #expect(defaults.scrollSensitivity == 5.0)
+        #expect(defaults.mouseResizeModifierKey == MouseResizeModifierKey.option.rawValue)
         #expect(defaults.statusBarShowWorkspaceName == false)
         #expect(defaults.statusBarShowAppNames == false)
         #expect(defaults.statusBarUseWorkspaceId == false)
@@ -573,6 +574,7 @@ struct HotkeySurfaceTests {
         settings.focusFollowsWindowToMonitor = true
         settings.mouseWarpAxis = .vertical
         settings.updateChecksEnabled = false
+        settings.mouseResizeModifierKey = .controlCommandShift
         settings.statusBarShowWorkspaceName = true
         settings.statusBarShowAppNames = true
         settings.statusBarUseWorkspaceId = true
@@ -598,6 +600,7 @@ struct HotkeySurfaceTests {
         #expect(reloaded.focusFollowsWindowToMonitor == true)
         #expect(reloaded.mouseWarpAxis == .vertical)
         #expect(reloaded.updateChecksEnabled == false)
+        #expect(reloaded.mouseResizeModifierKey == .controlCommandShift)
         #expect(reloaded.statusBarShowWorkspaceName == true)
         #expect(reloaded.statusBarShowAppNames == true)
         #expect(reloaded.statusBarUseWorkspaceId == true)
@@ -840,6 +843,7 @@ struct HotkeySurfaceTests {
         #expect(settings.updateChecksEnabled == true)
         #expect(settings.ipcEnabled == false)
         #expect(settings.scrollSensitivity == 5.0)
+        #expect(settings.mouseResizeModifierKey == .option)
         #expect(settings.statusBarShowWorkspaceName == false)
         #expect(settings.statusBarShowAppNames == false)
         #expect(settings.statusBarUseWorkspaceId == false)
@@ -878,6 +882,7 @@ struct HotkeySurfaceTests {
         #expect(settings.workspaceBarPosition.rawValue == exportDefaults.workspaceBarPosition)
         #expect(settings.dwindleDefaultSplitRatio == exportDefaults.dwindleDefaultSplitRatio)
         #expect(settings.scrollModifierKey.rawValue == exportDefaults.scrollModifierKey)
+        #expect(settings.mouseResizeModifierKey.rawValue == exportDefaults.mouseResizeModifierKey)
         #expect(settings.gestureFingerCount.rawValue == exportDefaults.gestureFingerCount)
         #expect(settings.statusBarShowWorkspaceName == exportDefaults.statusBarShowWorkspaceName)
         #expect(settings.statusBarShowAppNames == exportDefaults.statusBarShowAppNames)

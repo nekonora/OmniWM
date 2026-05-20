@@ -189,6 +189,19 @@ struct GeneralSettingsTab: View {
                 Text("Hold this key + scroll wheel to navigate workspaces")
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                Divider()
+                Text("Mouse Resize").font(.subheadline).foregroundColor(.secondary)
+
+                Picker("Right Mouse Resize Modifier", selection: $settings.mouseResizeModifierKey) {
+                    ForEach(MouseResizeModifierKey.allCases, id: \.self) { key in
+                        Text(key.displayName).tag(key)
+                    }
+                }
+
+                Text("Hold this modifier combo + right mouse drag to resize tiled windows")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
         .formStyle(.grouped)

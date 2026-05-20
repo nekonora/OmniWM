@@ -8,7 +8,7 @@ private let niriTouchpadGestureRecognitionThreshold: CGFloat = 16.0
 private let macNormalizedTouchPositionToNiriGestureUnits: CGFloat = 500.0
 private let mouseWheelAxisEpsilon: CGFloat = 0.001
 private let niriWheelScrollTickAmount: CGFloat = 120.0
-private let mouseWheelRelevantModifierFlags: CGEventFlags = [
+private let mouseRelevantModifierFlags: CGEventFlags = [
     .maskAlternate,
     .maskShift,
     .maskControl,
@@ -820,7 +820,9 @@ final class MouseEventHandler {
             return false
         }
 
-        guard button == .right, modifiers.contains(.maskAlternate) else { return false }
+        guard button == .right,
+              Self.modifierFlagsMatch(modifiers, required: controller.settings.mouseResizeModifierKey.cgEventFlag)
+        else { return false }
         if let placeholderToken = resizePlaceholderToken(at: location) {
             guard let tiledWindow = engine.findNode(for: placeholderToken),
                   let placeholderState = controller.workspaceManager.resizePlaceholderState(for: placeholderToken),
@@ -1679,7 +1681,11 @@ final class MouseEventHandler {
     }
 
     nonisolated static func mouseWheelModifiersMatch(_ modifiers: CGEventFlags, required: CGEventFlags) -> Bool {
-        modifiers.intersection(mouseWheelRelevantModifierFlags) == required
+        modifierFlagsMatch(modifiers, required: required)
+    }
+
+    nonisolated static func modifierFlagsMatch(_ modifiers: CGEventFlags, required: CGEventFlags) -> Bool {
+        modifiers.intersection(mouseRelevantModifierFlags) == required
     }
 
     nonisolated static func resolvedMouseWheelColumnDeltaValue(

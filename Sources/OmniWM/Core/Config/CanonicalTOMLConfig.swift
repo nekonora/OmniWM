@@ -120,6 +120,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var scrollEnabled: Bool
         var scrollSensitivity: Double
         var scrollModifierKey: String
+        var mouseResizeModifierKey: String
         var fingerCount: Int
         var invertDirection: Bool
     }
@@ -256,6 +257,7 @@ extension CanonicalTOMLConfig {
             scrollEnabled: export.scrollGestureEnabled,
             scrollSensitivity: export.scrollSensitivity,
             scrollModifierKey: export.scrollModifierKey,
+            mouseResizeModifierKey: export.mouseResizeModifierKey,
             fingerCount: export.gestureFingerCount,
             invertDirection: export.gestureInvertDirection
         )
@@ -372,6 +374,7 @@ extension CanonicalTOMLConfig {
             scrollGestureEnabled: gestures.scrollEnabled,
             scrollSensitivity: gestures.scrollSensitivity,
             scrollModifierKey: gestures.scrollModifierKey,
+            mouseResizeModifierKey: gestures.mouseResizeModifierKey,
             gestureFingerCount: gestures.fingerCount,
             gestureInvertDirection: gestures.invertDirection,
             statusBarShowWorkspaceName: statusBar.showWorkspaceName,
