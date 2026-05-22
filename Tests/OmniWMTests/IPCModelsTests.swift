@@ -73,7 +73,7 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
     }
 
     @Test func publicDTOsRoundTripThroughJSON() throws {
-        #expect(OmniWMIPCProtocol.version == 4)
+        #expect(OmniWMIPCProtocol.version == 5)
         #expect(IPCErrorCode.protocolMismatch.rawValue == "protocol_mismatch")
 
         try assertRoundTrip(
@@ -112,6 +112,22 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
                         showLabels: true,
                         backgroundOpacity: 0.75,
                         barHeight: 28,
+                        scratchpad: IPCWorkspaceBarScratchpad(
+                            window: IPCWorkspaceBarApp(
+                                id: "ow_scratchpad",
+                                appName: "Notes",
+                                isFocused: false,
+                                windowCount: 1,
+                                allWindows: [
+                                    IPCWorkspaceBarWindow(
+                                        id: "ow_scratchpad_window",
+                                        title: "Scratch",
+                                        isFocused: false
+                                    )
+                                ]
+                            ),
+                            isVisible: false
+                        ),
                         workspaces: [
                             IPCWorkspaceBarWorkspace(
                                 id: "ws-1",

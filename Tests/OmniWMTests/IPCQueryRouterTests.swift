@@ -184,6 +184,48 @@ private func prepareIPCQueryRouterNiriState(
         )
     }
 
+    @Test func workspaceBarQueryExposesScratchpadOutsideWorkspaceWindows() throws {
+        let controller = makeLayoutPlanTestController()
+        defer { resetSharedControllerStateForTests() }
+        controller.settings.workspaceBarHideEmptyWorkspaces = true
+        controller.settings.workspaceBarShowFloatingWindows = false
+
+        guard let workspace2 = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false),
+              let monitor = controller.workspaceManager.monitors.first
+        else {
+            Issue.record("Missing workspace fixture")
+            return
+        }
+
+        controller.appInfoCache.storeInfoForTests(pid: 7202, name: "Scratch App", bundleId: "com.example.scratch")
+        let token = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 1202),
+            pid: 7202,
+            windowId: 1202,
+            to: workspace2,
+            mode: .floating
+        )
+        _ = controller.workspaceManager.setScratchpadToken(token)
+        controller.workspaceManager.setHiddenState(
+            WindowModel.HiddenState(
+                proportionalPosition: .zero,
+                referenceMonitorId: monitor.id,
+                reason: .scratchpad
+            ),
+            for: token
+        )
+
+        let router = IPCQueryRouter(controller: controller, sessionToken: ipcQueryRouterSessionToken)
+        let result = router.workspaceBarResult()
+        let barMonitor = try #require(result.monitors.first)
+        let scratchpad = try #require(barMonitor.scratchpad)
+
+        #expect(barMonitor.workspaces.map(\.rawName).contains("2") == false)
+        #expect(scratchpad.window.appName == "Scratch App")
+        #expect(scratchpad.isVisible == false)
+        #expect(IPCWindowOpaqueID.decode(scratchpad.window.id, expectingSessionToken: ipcQueryRouterSessionToken)?.pid == 7202)
+    }
+
     @Test func activeWorkspaceQueryUsesInteractionMonitorSemantics() throws {
         let fixture = makeTwoMonitorLayoutPlanTestController()
         let router = IPCQueryRouter(controller: fixture.controller, sessionToken: ipcQueryRouterSessionToken)

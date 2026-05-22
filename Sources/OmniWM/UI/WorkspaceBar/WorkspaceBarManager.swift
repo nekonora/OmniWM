@@ -208,6 +208,9 @@ final class WorkspaceBarManager {
                 },
                 onFocusWindow: { [weak controller] token in
                     controller?.focusWindowFromBar(token: token)
+                },
+                onActivateScratchpad: { [weak controller] in
+                    controller?.activateScratchpadFromBar(on: monitor.id)
                 }
             )
         )
@@ -363,13 +366,13 @@ final class WorkspaceBarManager {
         resolved: ResolvedBarSettings
     ) -> WorkspaceBarSnapshot {
         let geometry = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true)
-        let items = controller?.workspaceBarItems(
+        let projection = controller?.workspaceBarProjection(
             for: monitor,
             projection: resolved.projectionOptions
-        ) ?? []
+        ) ?? WorkspaceBarProjection(items: [], scratchpad: nil)
 
         return WorkspaceBarSnapshot(
-            items: items,
+            projection: projection,
             showLabels: resolved.showLabels,
             backgroundOpacity: resolved.backgroundOpacity,
             barHeight: geometry.barHeight

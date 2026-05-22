@@ -87,6 +87,101 @@ import Testing
         #expect(workspaceItem.windows.map(\.windowId) == [912])
     }
 
+    @Test @MainActor func hiddenScratchpadProjectsAsTopLevelPillWhenFloatingWindowsAreDisabled() throws {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspace2 = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
+            Issue.record("Missing workspace bar fixture")
+            return
+        }
+
+        controller.appInfoCache.storeInfoForTests(pid: 6202, name: "Scratch App", bundleId: "com.example.scratch")
+        let token = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 922),
+            pid: 6202,
+            windowId: 922,
+            to: workspace2,
+            mode: .floating
+        )
+        _ = controller.workspaceManager.setScratchpadToken(token)
+        controller.workspaceManager.setHiddenState(
+            WindowModel.HiddenState(
+                proportionalPosition: .zero,
+                referenceMonitorId: monitor.id,
+                reason: .scratchpad
+            ),
+            for: token
+        )
+
+        let projection = WorkspaceBarDataSource.workspaceBarProjection(
+            for: monitor,
+            options: WorkspaceBarProjectionOptions(
+                deduplicateAppIcons: false,
+                hideEmptyWorkspaces: true,
+                showFloatingWindows: false
+            ),
+            workspaceManager: controller.workspaceManager,
+            appInfoCache: controller.appInfoCache,
+            niriEngine: nil,
+            focusedToken: controller.workspaceManager.focusedToken,
+            settings: controller.settings
+        )
+
+        #expect(projection.items.map(\.id).contains(workspace2) == false)
+        #expect(projection.scratchpad?.window.appName == "Scratch App")
+        #expect(projection.scratchpad?.window.windowId == 922)
+        #expect(projection.scratchpad?.isVisible == false)
+    }
+
+    @Test @MainActor func scratchpadIsSeparatedFromRegularFloatingWindows() throws {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspace1 = controller.workspaceManager.workspaceId(for: "1", createIfMissing: false)
+        else {
+            Issue.record("Missing workspace bar fixture")
+            return
+        }
+
+        controller.appInfoCache.storeInfoForTests(pid: 6301, name: "Floating App", bundleId: "com.example.floating")
+        controller.appInfoCache.storeInfoForTests(pid: 6302, name: "Scratch App", bundleId: "com.example.scratch")
+        _ = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 931),
+            pid: 6301,
+            windowId: 931,
+            to: workspace1,
+            mode: .floating
+        )
+        let scratchpadToken = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 932),
+            pid: 6302,
+            windowId: 932,
+            to: workspace1,
+            mode: .floating
+        )
+        _ = controller.workspaceManager.setScratchpadToken(scratchpadToken)
+
+        let projection = WorkspaceBarDataSource.workspaceBarProjection(
+            for: monitor,
+            options: WorkspaceBarProjectionOptions(
+                deduplicateAppIcons: false,
+                hideEmptyWorkspaces: false,
+                showFloatingWindows: true
+            ),
+            workspaceManager: controller.workspaceManager,
+            appInfoCache: controller.appInfoCache,
+            niriEngine: nil,
+            focusedToken: controller.workspaceManager.focusedToken,
+            settings: controller.settings
+        )
+
+        let workspaceItem = try #require(projection.items.first(where: { $0.id == workspace1 }))
+        #expect(workspaceItem.floatingWindows.map(\.appName) == ["Floating App"])
+        #expect(workspaceItem.windows.map(\.windowId) == [931])
+        #expect(projection.scratchpad?.window.appName == "Scratch App")
+        #expect(projection.scratchpad?.isVisible == true)
+    }
+
     @Test @MainActor func mixedWorkspacePlacesFloatingWindowsInTrailingGroup() throws {
         let controller = makeLayoutPlanTestController()
         guard let monitor = controller.workspaceManager.monitors.first,

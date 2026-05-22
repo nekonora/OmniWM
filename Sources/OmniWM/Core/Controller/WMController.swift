@@ -557,12 +557,64 @@ final class WMController {
         )
     }
 
+    func workspaceBarProjection(
+        for monitor: Monitor,
+        projection options: WorkspaceBarProjectionOptions
+    ) -> WorkspaceBarProjection {
+        WorkspaceBarDataSource.workspaceBarProjection(
+            for: monitor,
+            options: options,
+            workspaceManager: workspaceManager,
+            appInfoCache: appInfoCache,
+            niriEngine: niriEngine,
+            focusedToken: workspaceManager.focusedToken,
+            settings: settings
+        )
+    }
+
     func focusWorkspaceFromBar(named name: String) {
         windowActionHandler.focusWorkspaceFromBar(named: name)
     }
 
     func focusWindowFromBar(token: WindowToken) {
         windowActionHandler.focusWindowFromBar(token: token)
+    }
+
+    @discardableResult
+    func activateScratchpadFromBar(on monitorId: Monitor.ID?) -> ExternalCommandResult {
+        guard let scratchpadToken = workspaceManager.scratchpadToken() else {
+            return .notFound
+        }
+        guard let entry = workspaceManager.entry(for: scratchpadToken) else {
+            cleanupScratchpadWindowResources(for: scratchpadToken)
+            return .notFound
+        }
+        guard !isManagedWindowSuspendedForNativeFullscreen(scratchpadToken) else {
+            return .notFound
+        }
+
+        if let monitorId {
+            _ = workspaceManager.setInteractionMonitor(monitorId)
+        }
+
+        if let hiddenState = workspaceManager.hiddenState(for: scratchpadToken) {
+            guard hiddenState.isScratchpad || hiddenState.workspaceInactive,
+                  let target = scratchpadTarget(on: monitorId)
+            else {
+                return .notFound
+            }
+            let updatedEntry = workspaceManager.entry(for: scratchpadToken) ?? entry
+            return showScratchpadWindow(updatedEntry, on: target.workspaceId, monitor: target.monitor)
+                ? .executed
+                : .notFound
+        }
+
+        if windowActionHandler.focusWindowFromBar(token: scratchpadToken) {
+            return .executed
+        }
+
+        focusWindow(scratchpadToken)
+        return .executed
     }
 
     func setFocusFollowsMouse(_ enabled: Bool) {
@@ -1524,8 +1576,8 @@ final class WMController {
         return true
     }
 
-    private func currentScratchpadTarget() -> (workspaceId: WorkspaceDescriptor.ID, monitor: Monitor)? {
-        guard let monitor = monitorForInteraction(),
+    private func scratchpadTarget(on monitorId: Monitor.ID? = nil) -> (workspaceId: WorkspaceDescriptor.ID, monitor: Monitor)? {
+        guard let monitor = monitorId.flatMap({ workspaceManager.monitor(byId: $0) }) ?? monitorForInteraction(),
               let workspaceId = workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
         else {
             return nil
@@ -1589,7 +1641,9 @@ final class WMController {
         axManager.cancelPendingFrameJobs(frameEntry)
         axManager.unsuppressFrameWrites(frameEntry)
         AXWindowService.unpinAXElement(for: UInt32(token.windowId))
-        _ = workspaceManager.clearScratchpadIfMatches(token)
+        if workspaceManager.clearScratchpadIfMatches(token) {
+            requestWorkspaceBarRefresh()
+        }
     }
 
     func cleanupScratchpadWindowResourcesIfNeeded(for token: WindowToken) {
@@ -1626,6 +1680,7 @@ final class WMController {
             side: preferredSide,
             reason: .scratchpad
         )
+        requestWorkspaceBarRefresh()
         recoverFocusAfterScratchpadHide(
             in: entry.workspaceId,
             excluding: entry.token,
@@ -2230,7 +2285,9 @@ final class WMController {
             return .notFound
         }
 
-        _ = workspaceManager.setScratchpadToken(token)
+        if workspaceManager.setScratchpadToken(token) {
+            requestWorkspaceBarRefresh()
+        }
 
         guard let updatedEntry = workspaceManager.entry(for: token),
               let hideMonitor = workspaceManager.monitor(for: updatedEntry.workspaceId) ?? preferredMonitor
@@ -2297,7 +2354,7 @@ final class WMController {
         guard !isManagedWindowSuspendedForNativeFullscreen(scratchpadToken) else {
             return .notFound
         }
-        guard let target = currentScratchpadTarget() else {
+        guard let target = scratchpadTarget() else {
             return .notFound
         }
 

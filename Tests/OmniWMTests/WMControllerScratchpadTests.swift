@@ -145,6 +145,34 @@ private func setScratchpadTestFrame(
         #expect(controller.axManager.lastAppliedFrame(for: windowId) == movedFrame)
     }
 
+    @Test @MainActor func scratchpadVisibilityChangesRequestWorkspaceBarRefresh() {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or workspace for scratchpad refresh test")
+            return
+        }
+
+        let windowId = 71_011
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: windowId)
+        let frame = CGRect(x: 180, y: 140, width: 700, height: 460)
+        setScratchpadTestFrame(on: controller, token: token, frame: frame)
+        _ = controller.workspaceManager.setManagedFocus(token, in: workspaceId, onMonitor: monitor.id)
+
+        controller.resetWorkspaceBarRefreshDebugStateForTests()
+        controller.assignFocusedWindowToScratchpad()
+        #expect(controller.workspaceBarRefreshDebugState.requestCount > 0)
+
+        controller.resetWorkspaceBarRefreshDebugStateForTests()
+        controller.toggleScratchpadWindow()
+        #expect(controller.workspaceBarRefreshDebugState.requestCount > 0)
+
+        controller.resetWorkspaceBarRefreshDebugStateForTests()
+        controller.toggleScratchpadWindow()
+        #expect(controller.workspaceBarRefreshDebugState.requestCount > 0)
+    }
+
     @Test @MainActor func assignFocusedWindowToScratchpadClearsVisibleScratchpadSlotWhenRepeated() {
         let controller = makeLayoutPlanTestController()
         guard let monitor = controller.workspaceManager.monitors.first,

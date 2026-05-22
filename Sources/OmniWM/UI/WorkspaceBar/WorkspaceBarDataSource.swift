@@ -19,6 +19,54 @@ enum WorkspaceBarDataSource {
         focusedToken: WindowToken?,
         settings: SettingsStore
     ) -> [WorkspaceBarItem] {
+        workspaceItems(
+            for: monitor,
+            options: options,
+            workspaceManager: workspaceManager,
+            appInfoCache: appInfoCache,
+            niriEngine: niriEngine,
+            focusedToken: focusedToken,
+            settings: settings
+        )
+    }
+
+    static func workspaceBarProjection(
+        for monitor: Monitor,
+        options: WorkspaceBarProjectionOptions,
+        workspaceManager: WorkspaceManager,
+        appInfoCache: AppInfoCache,
+        niriEngine: NiriLayoutEngine?,
+        focusedToken: WindowToken?,
+        settings: SettingsStore
+    ) -> WorkspaceBarProjection {
+        WorkspaceBarProjection(
+            items: workspaceItems(
+                for: monitor,
+                options: options,
+                workspaceManager: workspaceManager,
+                appInfoCache: appInfoCache,
+                niriEngine: niriEngine,
+                focusedToken: focusedToken,
+                settings: settings
+            ),
+            scratchpad: scratchpadItem(
+                workspaceManager: workspaceManager,
+                appInfoCache: appInfoCache,
+                focusedToken: focusedToken,
+                settings: settings
+            )
+        )
+    }
+
+    private static func workspaceItems(
+        for monitor: Monitor,
+        options: WorkspaceBarProjectionOptions,
+        workspaceManager: WorkspaceManager,
+        appInfoCache: AppInfoCache,
+        niriEngine: NiriLayoutEngine?,
+        focusedToken: WindowToken?,
+        settings: SettingsStore
+    ) -> [WorkspaceBarItem] {
         var workspaces = workspaceManager.workspaces(on: monitor.id).map { workspace in
             let projectedEntries = workspaceManager.barVisibleEntries(
                 in: workspace.id,
@@ -77,6 +125,36 @@ enum WorkspaceBarDataSource {
                 floatingWindows: floatingWindows
             )
         }
+    }
+
+    private static func scratchpadItem(
+        workspaceManager: WorkspaceManager,
+        appInfoCache: AppInfoCache,
+        focusedToken: WindowToken?,
+        settings: SettingsStore
+    ) -> WorkspaceBarScratchpadItem? {
+        guard let scratchpadToken = workspaceManager.scratchpadToken(),
+              let entry = workspaceManager.entry(for: scratchpadToken),
+              let window = createWindowItems(
+                  entries: [entry],
+                  deduplicate: false,
+                  useLayoutOrder: false,
+                  appInfoCache: appInfoCache,
+                  focusedToken: focusedToken
+              ).first
+        else {
+            return nil
+        }
+
+        let descriptor = workspaceManager.descriptor(for: entry.workspaceId)
+        let rawWorkspaceName = descriptor?.name ?? ""
+        return WorkspaceBarScratchpadItem(
+            window: window,
+            isVisible: workspaceManager.hiddenState(for: scratchpadToken) == nil,
+            workspaceId: entry.workspaceId,
+            workspaceName: settings.displayName(for: rawWorkspaceName),
+            rawWorkspaceName: rawWorkspaceName
+        )
     }
 
     private static func createWindowItems(

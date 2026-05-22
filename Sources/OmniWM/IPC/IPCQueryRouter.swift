@@ -34,7 +34,7 @@ final class IPCQueryRouter {
                 resolved: resolved,
                 isVisible: isVisible
             )
-            let items = controller.workspaceBarItems(
+            let projection = controller.workspaceBarProjection(
                 for: monitor,
                 projection: resolved.projectionOptions
             )
@@ -47,7 +47,8 @@ final class IPCQueryRouter {
                 showLabels: resolved.showLabels,
                 backgroundOpacity: resolved.backgroundOpacity,
                 barHeight: Double(geometry.barHeight),
-                workspaces: items.map(workspaceBarWorkspace(from:))
+                scratchpad: projection.scratchpad.map(workspaceBarScratchpad(from:)),
+                workspaces: projection.items.map(workspaceBarWorkspace(from:))
             )
         }
 
@@ -314,6 +315,13 @@ final class IPCQueryRouter {
                     isFocused: window.isFocused
                 )
             }
+        )
+    }
+
+    private func workspaceBarScratchpad(from item: WorkspaceBarScratchpadItem) -> IPCWorkspaceBarScratchpad {
+        IPCWorkspaceBarScratchpad(
+            window: workspaceBarApp(from: item.window),
+            isVisible: item.isVisible
         )
     }
 

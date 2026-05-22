@@ -1,7 +1,7 @@
 import Foundation
 
 public enum OmniWMIPCProtocol {
-    public static let version = 4
+    public static let version = 5
 }
 
 public struct IPCNoPayload: Codable, Equatable, Sendable {
@@ -2027,6 +2027,16 @@ public struct IPCWorkspaceBarApp: Codable, Equatable, Sendable {
     }
 }
 
+public struct IPCWorkspaceBarScratchpad: Codable, Equatable, Sendable {
+    public let window: IPCWorkspaceBarApp
+    public let isVisible: Bool
+
+    public init(window: IPCWorkspaceBarApp, isVisible: Bool) {
+        self.window = window
+        self.isVisible = isVisible
+    }
+}
+
 public struct IPCWorkspaceBarWorkspace: Codable, Equatable, Sendable {
     public let id: String
     public let rawName: String
@@ -2060,6 +2070,7 @@ public struct IPCWorkspaceBarMonitor: Codable, Equatable, Sendable {
     public let showLabels: Bool
     public let backgroundOpacity: Double
     public let barHeight: Double
+    public let scratchpad: IPCWorkspaceBarScratchpad?
     public let workspaces: [IPCWorkspaceBarWorkspace]
 
     public init(
@@ -2070,6 +2081,7 @@ public struct IPCWorkspaceBarMonitor: Codable, Equatable, Sendable {
         showLabels: Bool,
         backgroundOpacity: Double,
         barHeight: Double,
+        scratchpad: IPCWorkspaceBarScratchpad?,
         workspaces: [IPCWorkspaceBarWorkspace]
     ) {
         self.id = id
@@ -2079,6 +2091,7 @@ public struct IPCWorkspaceBarMonitor: Codable, Equatable, Sendable {
         self.showLabels = showLabels
         self.backgroundOpacity = backgroundOpacity
         self.barHeight = barHeight
+        self.scratchpad = scratchpad
         self.workspaces = workspaces
     }
 }

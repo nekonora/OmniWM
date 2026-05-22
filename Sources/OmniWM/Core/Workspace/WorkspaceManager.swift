@@ -2309,7 +2309,9 @@ final class WorkspaceManager {
     }
 
     private func barVisibleFloatingEntries(in workspace: WorkspaceDescriptor.ID) -> [WindowModel.Entry] {
-        floatingEntries(in: workspace).filter { hiddenState(for: $0.token)?.isScratchpad != true }
+        floatingEntries(in: workspace).filter {
+            !isScratchpadToken($0.token) && hiddenState(for: $0.token)?.isScratchpad != true
+        }
     }
 
     func handle(for token: WindowToken) -> WindowHandle? {

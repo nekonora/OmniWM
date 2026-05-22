@@ -2605,6 +2605,9 @@ import QuartzCore
         pendingRevealVerificationTasksByWindowId.removeValue(forKey: windowId)?.cancel()
 
         controller.workspaceManager.setHiddenState(nil, for: pendingTransaction.token)
+        if pendingTransaction.hiddenState.isScratchpad {
+            controller.requestWorkspaceBarRefresh()
+        }
         if let confirmedFrame {
             controller.axManager.confirmFrameWrite(for: pendingTransaction.windowId, frame: confirmedFrame)
         }
@@ -2693,6 +2696,9 @@ import QuartzCore
         case .none:
             if hiddenState.workspaceInactive {
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
+                if hiddenState.isScratchpad {
+                    controller.requestWorkspaceBarRefresh()
+                }
                 controller.axManager.unsuppressFrameWrites(frameEntry)
                 onSuccess?()
                 return true
@@ -2703,12 +2709,18 @@ import QuartzCore
         case let .positionPlan(plan):
             applyPositionPlans([plan])
             controller.workspaceManager.setHiddenState(nil, for: entry.token)
+            if hiddenState.isScratchpad {
+                controller.requestWorkspaceBarRefresh()
+            }
             controller.axManager.unsuppressFrameWrites(frameEntry)
             onSuccess?()
             return true
         case let .asyncFrame(frame):
             if !shouldUsePendingRevealTransaction(for: entry, hiddenState: hiddenState) {
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
+                if hiddenState.isScratchpad {
+                    controller.requestWorkspaceBarRefresh()
+                }
                 controller.axManager.unsuppressFrameWrites(frameEntry)
                 controller.axManager.forceApplyNextFrame(for: entry.windowId)
                 controller.axManager.applyFramesParallel([(entry.pid, entry.windowId, frame)])
