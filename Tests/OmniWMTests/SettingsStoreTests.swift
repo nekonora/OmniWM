@@ -433,6 +433,39 @@ struct SettingsExportTests {
 
         #expect(settings.resolvedBarSettings(for: monitor).showFloatingWindows == true)
     }
+
+    @Test func workspaceBarThemeColorsRoundTripThroughExportAndResolution() {
+        let settings = SettingsStore(defaults: makeTestDefaults())
+        let monitor = makeLayoutPlanTestMonitor(name: "Theme Test")
+        let accent = SettingsColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1)
+        let text = SettingsColor(red: 0.9, green: 0.8, blue: 0.7, alpha: 1)
+
+        settings.workspaceBarAccentColor = accent
+        settings.workspaceBarTextColor = text
+
+        let export = settings.toExport()
+        #expect(export.workspaceBarAccentColor == accent)
+        #expect(export.workspaceBarTextColor == text)
+
+        let reloaded = SettingsStore(defaults: makeTestDefaults())
+        reloaded.applyExport(export, monitors: [monitor])
+
+        #expect(reloaded.workspaceBarAccentColor == accent)
+        #expect(reloaded.workspaceBarTextColor == text)
+        #expect(reloaded.resolvedBarSettings(for: monitor).accentColor == accent)
+        #expect(reloaded.resolvedBarSettings(for: monitor).textColor == text)
+    }
+
+    @Test func workspaceBarThemeColorDefaultsUseSystemFallbacks() {
+        let settings = SettingsStore(defaults: makeTestDefaults())
+        let monitor = makeLayoutPlanTestMonitor(name: "Default Theme Test")
+        let resolved = settings.resolvedBarSettings(for: monitor)
+
+        #expect(settings.workspaceBarAccentColor == nil)
+        #expect(settings.workspaceBarTextColor == nil)
+        #expect(resolved.accentColor == nil)
+        #expect(resolved.textColor == nil)
+    }
 }
 
 struct KeyBindingCodecTests {

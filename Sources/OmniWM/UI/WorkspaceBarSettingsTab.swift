@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct WorkspaceBarSettingsTab: View {
@@ -44,6 +45,7 @@ struct WorkspaceBarSettingsTab: View {
 private struct GlobalBarSettingsSection: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
+    @State private var pendingAppearanceSync: Task<Void, Never>?
 
     var body: some View {
         Section("Workspace Bar") {
@@ -159,7 +161,82 @@ private struct GlobalBarSettingsSection: View {
                 .onChange(of: settings.workspaceBarBackgroundOpacity) { _, _ in
                     controller.updateWorkspaceBarSettings()
                 }
+
+                Toggle("Custom Accent Color", isOn: customAccentColorBinding)
+
+                if settings.workspaceBarAccentColor != nil {
+                    ColorPicker("Accent Color", selection: accentColorBinding, supportsOpacity: false)
+                }
+
+                Toggle("Custom Text Color", isOn: customTextColorBinding)
+
+                if settings.workspaceBarTextColor != nil {
+                    ColorPicker("Text Color", selection: textColorBinding, supportsOpacity: false)
+                }
             }
+        }
+    }
+
+    private var customAccentColorBinding: Binding<Bool> {
+        Binding(
+            get: { settings.workspaceBarAccentColor != nil },
+            set: { enabled in
+                settings.workspaceBarAccentColor = enabled ? settings.workspaceBarAccentColor ?? defaultAccentColor : nil
+                debouncedAppearanceSync()
+            }
+        )
+    }
+
+    private var customTextColorBinding: Binding<Bool> {
+        Binding(
+            get: { settings.workspaceBarTextColor != nil },
+            set: { enabled in
+                settings.workspaceBarTextColor = enabled ? settings.workspaceBarTextColor ?? defaultTextColor : nil
+                debouncedAppearanceSync()
+            }
+        )
+    }
+
+    private var accentColorBinding: Binding<Color> {
+        Binding(
+            get: { (settings.workspaceBarAccentColor ?? defaultAccentColor).swiftUIColor },
+            set: { newColor in
+                if let color = SettingsColor(color: newColor, preservesAlpha: false) {
+                    settings.workspaceBarAccentColor = color
+                    debouncedAppearanceSync()
+                }
+            }
+        )
+    }
+
+    private var textColorBinding: Binding<Color> {
+        Binding(
+            get: { (settings.workspaceBarTextColor ?? defaultTextColor).swiftUIColor },
+            set: { newColor in
+                if let color = SettingsColor(color: newColor, preservesAlpha: false) {
+                    settings.workspaceBarTextColor = color
+                    debouncedAppearanceSync()
+                }
+            }
+        )
+    }
+
+    private var defaultAccentColor: SettingsColor {
+        SettingsColor(nsColor: .controlAccentColor, preservesAlpha: false)
+            ?? SettingsColor(red: 0, green: 0.4784313725, blue: 1, alpha: 1)
+    }
+
+    private var defaultTextColor: SettingsColor {
+        SettingsColor(nsColor: .labelColor, preservesAlpha: false)
+            ?? SettingsColor(red: 1, green: 1, blue: 1, alpha: 1)
+    }
+
+    private func debouncedAppearanceSync() {
+        pendingAppearanceSync?.cancel()
+        pendingAppearanceSync = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))
+            guard !Task.isCancelled else { return }
+            controller.updateWorkspaceBarAppearance()
         }
     }
 }

@@ -204,6 +204,14 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var workspaceBarAccentColor = SettingsStore.defaultExport.workspaceBarAccentColor {
+        didSet { scheduleSave() }
+    }
+
+    var workspaceBarTextColor = SettingsStore.defaultExport.workspaceBarTextColor {
+        didSet { scheduleSave() }
+    }
+
     var monitorBarSettings = SettingsStore.defaultExport.monitorBarSettings {
         didSet { scheduleSave() }
     }
@@ -535,14 +543,8 @@ final class SettingsStore {
             workspaceBarBackgroundOpacity: workspaceBarBackgroundOpacity,
             workspaceBarXOffset: workspaceBarXOffset,
             workspaceBarYOffset: workspaceBarYOffset,
-            workspaceBarAccentColorRed: -1,
-            workspaceBarAccentColorGreen: -1,
-            workspaceBarAccentColorBlue: -1,
-            workspaceBarAccentColorAlpha: 1,
-            workspaceBarTextColorRed: -1,
-            workspaceBarTextColorGreen: -1,
-            workspaceBarTextColorBlue: -1,
-            workspaceBarTextColorAlpha: 1,
+            workspaceBarAccentColor: workspaceBarAccentColor,
+            workspaceBarTextColor: workspaceBarTextColor,
             workspaceBarLabelFontSize: 12,
             monitorBarSettings: monitorBarSettings,
             appRules: appRules,
@@ -645,6 +647,8 @@ final class SettingsStore {
         workspaceBarBackgroundOpacity = export.workspaceBarBackgroundOpacity
         workspaceBarXOffset = export.workspaceBarXOffset
         workspaceBarYOffset = export.workspaceBarYOffset
+        workspaceBarAccentColor = export.workspaceBarAccentColor
+        workspaceBarTextColor = export.workspaceBarTextColor
         monitorBarSettings = SettingsStore.reboundMonitorSettings(export.monitorBarSettings, monitors: monitors)
 
         appRules = export.appRules
@@ -886,7 +890,9 @@ final class SettingsStore {
             height: override?.height ?? workspaceBarHeight,
             backgroundOpacity: override?.backgroundOpacity ?? workspaceBarBackgroundOpacity,
             xOffset: override?.xOffset ?? workspaceBarXOffset,
-            yOffset: override?.yOffset ?? workspaceBarYOffset
+            yOffset: override?.yOffset ?? workspaceBarYOffset,
+            accentColor: workspaceBarAccentColor,
+            textColor: workspaceBarTextColor
         )
     }
 

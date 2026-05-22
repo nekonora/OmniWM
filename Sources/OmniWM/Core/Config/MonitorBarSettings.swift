@@ -119,4 +119,6 @@ struct ResolvedBarSettings {
     let backgroundOpacity: Double
     let xOffset: Double
     let yOffset: Double
+    let accentColor: SettingsColor?
+    let textColor: SettingsColor?
 }

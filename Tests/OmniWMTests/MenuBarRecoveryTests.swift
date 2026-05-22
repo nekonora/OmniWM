@@ -64,7 +64,9 @@ private func makeBarSettings(
         height: height,
         backgroundOpacity: 0.1,
         xOffset: xOffset,
-        yOffset: yOffset
+        yOffset: yOffset,
+        accentColor: nil,
+        textColor: nil
     )
 }
 

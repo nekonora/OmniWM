@@ -126,6 +126,14 @@ final class WorkspaceBarManager {
         refreshBarsContent()
     }
 
+    func updateAppearance() {
+        guard settings != nil else { return }
+
+        for instance in barsByMonitor.values {
+            refreshBarAppearance(instance: instance)
+        }
+    }
+
     func setEnabled(_ enabled: Bool) {
         cancelPendingReconfigure()
 
@@ -314,6 +322,25 @@ final class WorkspaceBarManager {
         )
     }
 
+    private func refreshBarAppearance(instance: MonitorBarInstance) {
+        guard let settings else { return }
+
+        let resolved = settings.resolvedBarSettings(for: instance.monitor)
+        let current = instance.model.snapshot
+        let snapshot = WorkspaceBarSnapshot(
+            projection: current.projection,
+            showLabels: current.showLabels,
+            backgroundOpacity: current.backgroundOpacity,
+            barHeight: current.barHeight,
+            accentColor: resolved.accentColor,
+            textColor: resolved.textColor
+        )
+
+        if snapshot != current {
+            instance.model.snapshot = snapshot
+        }
+    }
+
     private func removeBarForMonitor(_ monitorId: Monitor.ID) {
         if let instance = barsByMonitor[monitorId] {
             surfaceCoordinator.unregister(id: surfaceId(for: monitorId))
@@ -375,7 +402,9 @@ final class WorkspaceBarManager {
             projection: projection,
             showLabels: resolved.showLabels,
             backgroundOpacity: resolved.backgroundOpacity,
-            barHeight: geometry.barHeight
+            barHeight: geometry.barHeight,
+            accentColor: resolved.accentColor,
+            textColor: resolved.textColor
         )
     }
 
@@ -540,6 +569,10 @@ extension WorkspaceBarManager {
 
     func lastAppliedFrameForTests(on monitorId: Monitor.ID) -> CGRect? {
         barsByMonitor[monitorId]?.lastAppliedFrame
+    }
+
+    func snapshotForTests(on monitorId: Monitor.ID) -> WorkspaceBarSnapshot? {
+        barsByMonitor[monitorId]?.model.snapshot
     }
 
     func panelEffectiveAppearanceForTests(on monitorId: Monitor.ID) -> NSAppearance.Name? {

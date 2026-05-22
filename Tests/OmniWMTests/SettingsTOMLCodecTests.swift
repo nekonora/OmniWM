@@ -131,24 +131,31 @@ private extension String {
     @Test func recoveryPreservesExplicitValuesWhenOtherRequiredKeysAreMissing() throws {
         var original = SettingsExport.defaults()
         original.mouseResizeModifierKey = MouseResizeModifierKey.controlCommandShift.rawValue
-        original.workspaceBarTextColorRed = 0.2
-        original.workspaceBarTextColorGreen = 0.3
-        original.workspaceBarTextColorBlue = 0.4
-        original.workspaceBarTextColorAlpha = 0.5
+        original.workspaceBarTextColor = SettingsColor(red: 0.2, green: 0.3, blue: 0.4, alpha: 1)
 
         let data = try SettingsTOMLCodec.encode(original)
         let output = try #require(String(data: data, encoding: .utf8))
-        let olderConfig = try output
-            .removingKey("animationsEnabled")
-            .removingKey("red", inSection: "workspaceBar.textColor")
+        let olderConfig = try output.removingKey("animationsEnabled")
 
         let decoded = try SettingsTOMLCodec.decode(Data(olderConfig.utf8))
 
         #expect(decoded.mouseResizeModifierKey == MouseResizeModifierKey.controlCommandShift.rawValue)
-        #expect(decoded.workspaceBarTextColorRed == SettingsExport.defaults().workspaceBarTextColorRed)
-        #expect(decoded.workspaceBarTextColorGreen == 0.3)
-        #expect(decoded.workspaceBarTextColorBlue == 0.4)
-        #expect(decoded.workspaceBarTextColorAlpha == 0.5)
+        #expect(decoded.workspaceBarTextColor == original.workspaceBarTextColor)
+    }
+
+    @Test func recoveryDropsIncompleteOptionalWorkspaceBarColors() throws {
+        var original = SettingsExport.defaults()
+        original.workspaceBarAccentColor = SettingsColor(red: 0.2, green: 0.3, blue: 0.4, alpha: 1)
+        original.workspaceBarTextColor = SettingsColor(red: 0.7, green: 0.8, blue: 0.9, alpha: 1)
+
+        let data = try SettingsTOMLCodec.encode(original)
+        let output = try #require(String(data: data, encoding: .utf8))
+        let edited = try output.removingKey("alpha", inSection: "workspaceBar.textColor")
+
+        let decoded = try SettingsTOMLCodec.decode(Data(edited.utf8))
+
+        #expect(decoded.workspaceBarAccentColor == original.workspaceBarAccentColor)
+        #expect(decoded.workspaceBarTextColor == nil)
     }
 
     @Test func recoveryDefaultsOnlyMissingTopLevelArrays() throws {
@@ -220,8 +227,8 @@ private extension String {
         #expect(output.contains("[borders]"))
         #expect(output.contains("[borders.color]"))
         #expect(output.contains("[workspaceBar]"))
-        #expect(output.contains("[workspaceBar.accentColor]"))
-        #expect(output.contains("[workspaceBar.textColor]"))
+        #expect(output.contains("[workspaceBar.accentColor]") == false)
+        #expect(output.contains("[workspaceBar.textColor]") == false)
         #expect(output.contains("[gestures]"))
         #expect(output.contains("[statusBar]"))
         #expect(output.contains("[clipboard]"))
@@ -430,23 +437,21 @@ private extension String {
         export.borderColorGreen = 0.2
         export.borderColorBlue = 0.3
         export.borderColorAlpha = 0.4
-        export.workspaceBarAccentColorRed = 0.5
-        export.workspaceBarAccentColorGreen = 0.6
-        export.workspaceBarAccentColorBlue = 0.7
-        export.workspaceBarAccentColorAlpha = 0.8
-        export.workspaceBarTextColorRed = 0.9
-        export.workspaceBarTextColorGreen = 1.0
-        export.workspaceBarTextColorBlue = 0.0
-        export.workspaceBarTextColorAlpha = 0.25
+        export.workspaceBarAccentColor = SettingsColor(red: 0.5, green: 0.6, blue: 0.7, alpha: 1)
+        export.workspaceBarTextColor = SettingsColor(red: 0.9, green: 1.0, blue: 0.0, alpha: 1)
 
         let data = try SettingsTOMLCodec.encode(export)
+        let output = try #require(String(data: data, encoding: .utf8))
+        #expect(output.contains("[workspaceBar.accentColor]"))
+        #expect(output.contains("[workspaceBar.textColor]"))
+
         let decoded = try SettingsTOMLCodec.decode(data)
         #expect(decoded.borderColorRed == export.borderColorRed)
         #expect(decoded.borderColorGreen == export.borderColorGreen)
         #expect(decoded.borderColorBlue == export.borderColorBlue)
         #expect(decoded.borderColorAlpha == export.borderColorAlpha)
-        #expect(decoded.workspaceBarAccentColorRed == export.workspaceBarAccentColorRed)
-        #expect(decoded.workspaceBarTextColorBlue == export.workspaceBarTextColorBlue)
+        #expect(decoded.workspaceBarAccentColor == export.workspaceBarAccentColor)
+        #expect(decoded.workspaceBarTextColor == export.workspaceBarTextColor)
     }
 
     @Test func roundTripsOuterGaps() throws {

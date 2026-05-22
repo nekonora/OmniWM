@@ -240,6 +240,41 @@ private func makeRecordingPanelFactory(
         #expect(updatedFrame.height == 48)
     }
 
+    @Test @MainActor func colorOnlyUpdateRefreshesSnapshotWithoutReplacingHostOrFrame() throws {
+        let monitor = makeLayoutPlanTestMonitor(displayId: 790)
+        let controller = makeLayoutPlanTestController(monitors: [monitor])
+        let manager = WorkspaceBarManager()
+        let panelStore = RecordingPanelStore()
+        let frameRecorder = FrameApplyRecorder()
+        let accent = SettingsColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1)
+        let text = SettingsColor(red: 0.9, green: 0.8, blue: 0.7, alpha: 1)
+
+        manager.monitorProvider = { [monitor] }
+        manager.screenProvider = { _ in nil }
+        manager.panelFactory = makeRecordingPanelFactory(store: panelStore)
+        manager.frameApplier = { panel, frame in
+            frameRecorder.apply(frame: frame, to: panel)
+        }
+
+        manager.setup(controller: controller, settings: controller.settings)
+        defer { manager.cleanup() }
+
+        let panel = try #require(panelStore.panels.first)
+        let initialHostingView = try #require(manager.hostingViewIdentifierForTests(on: monitor.id))
+        let initialFrame = try #require(manager.lastAppliedFrameForTests(on: monitor.id))
+
+        controller.settings.workspaceBarAccentColor = accent
+        controller.settings.workspaceBarTextColor = text
+        manager.updateAppearance()
+
+        let snapshot = try #require(manager.snapshotForTests(on: monitor.id))
+        #expect(snapshot.accentColor == accent)
+        #expect(snapshot.textColor == text)
+        #expect(manager.hostingViewIdentifierForTests(on: monitor.id) == initialHostingView)
+        #expect(manager.lastAppliedFrameForTests(on: monitor.id) == initialFrame)
+        #expect(frameRecorder.setFrameCallCount(for: panel) == 1)
+    }
+
     @Test @MainActor func reconfigureBarsAddsAndRemovesPanelsWithoutRecreatingSurvivors() throws {
         let primaryMonitor = makeLayoutPlanTestMonitor(displayId: 80)
         let secondaryMonitor = makeLayoutPlanTestMonitor(displayId: 81, x: 1920)

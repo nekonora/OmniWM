@@ -518,6 +518,10 @@ final class WMController {
         layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
     }
 
+    func updateWorkspaceBarAppearance() {
+        workspaceBarManager.updateAppearance()
+    }
+
     func updateMonitorOrientations() {
         let monitors = workspaceManager.monitors
         for monitor in monitors {

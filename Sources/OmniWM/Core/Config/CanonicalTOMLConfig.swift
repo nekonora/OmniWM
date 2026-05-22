@@ -109,14 +109,32 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var xOffset: Double
         var yOffset: Double
         var labelFontSize: Double
-        var accentColor: Color
-        var textColor: Color
+        var accentColor: Color?
+        var textColor: Color?
 
         struct Color: Codable, Equatable {
             var red: Double
             var green: Double
             var blue: Double
             var alpha: Double
+
+            init(red: Double, green: Double, blue: Double, alpha: Double) {
+                self.red = red
+                self.green = green
+                self.blue = blue
+                self.alpha = alpha
+            }
+
+            init(_ color: SettingsColor) {
+                red = color.red
+                green = color.green
+                blue = color.blue
+                alpha = color.alpha
+            }
+
+            var settingsColor: SettingsColor {
+                SettingsColor(red: red, green: green, blue: blue, alpha: alpha)
+            }
         }
     }
 
@@ -475,33 +493,24 @@ extension CanonicalTOMLConfig.WorkspaceBar {
         xOffset = try container.decode(Double.self, forKey: .xOffset, default: defaults.xOffset, recovering: recovering)
         yOffset = try container.decode(Double.self, forKey: .yOffset, default: defaults.yOffset, recovering: recovering)
         labelFontSize = try container.decode(Double.self, forKey: .labelFontSize, default: defaults.labelFontSize, recovering: recovering)
-        accentColor = try container.decode(
-            Color.self,
-            forKey: .accentColor,
-            default: defaults.accentColor,
-            recovering: recovering
-        ) { decoder, defaultValue, recovering in
-            try Color(from: decoder, default: defaultValue, recovering: recovering)
+        do {
+            accentColor = try container.decodeIfPresent(Color.self, forKey: .accentColor)
+        } catch {
+            if recovering {
+                accentColor = nil
+            } else {
+                throw error
+            }
         }
-        textColor = try container.decode(
-            Color.self,
-            forKey: .textColor,
-            default: defaults.textColor,
-            recovering: recovering
-        ) { decoder, defaultValue, recovering in
-            try Color(from: decoder, default: defaultValue, recovering: recovering)
+        do {
+            textColor = try container.decodeIfPresent(Color.self, forKey: .textColor)
+        } catch {
+            if recovering {
+                textColor = nil
+            } else {
+                throw error
+            }
         }
-    }
-}
-
-extension CanonicalTOMLConfig.WorkspaceBar.Color {
-    init(from decoder: Decoder, default defaultValue: Self, recovering: Bool) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        red = try container.decode(Double.self, forKey: .red, default: defaultValue.red, recovering: recovering)
-        green = try container.decode(Double.self, forKey: .green, default: defaultValue.green, recovering: recovering)
-        blue = try container.decode(Double.self, forKey: .blue, default: defaultValue.blue, recovering: recovering)
-        alpha = try container.decode(Double.self, forKey: .alpha, default: defaultValue.alpha, recovering: recovering)
     }
 }
 
@@ -671,18 +680,8 @@ extension CanonicalTOMLConfig {
             xOffset: export.workspaceBarXOffset,
             yOffset: export.workspaceBarYOffset,
             labelFontSize: export.workspaceBarLabelFontSize,
-            accentColor: WorkspaceBar.Color(
-                red: export.workspaceBarAccentColorRed,
-                green: export.workspaceBarAccentColorGreen,
-                blue: export.workspaceBarAccentColorBlue,
-                alpha: export.workspaceBarAccentColorAlpha
-            ),
-            textColor: WorkspaceBar.Color(
-                red: export.workspaceBarTextColorRed,
-                green: export.workspaceBarTextColorGreen,
-                blue: export.workspaceBarTextColorBlue,
-                alpha: export.workspaceBarTextColorAlpha
-            )
+            accentColor: export.workspaceBarAccentColor.map(WorkspaceBar.Color.init),
+            textColor: export.workspaceBarTextColor.map(WorkspaceBar.Color.init)
         )
         gestures = Gestures(
             scrollEnabled: export.scrollGestureEnabled,
@@ -776,14 +775,8 @@ extension CanonicalTOMLConfig {
             workspaceBarBackgroundOpacity: workspaceBar.backgroundOpacity,
             workspaceBarXOffset: workspaceBar.xOffset,
             workspaceBarYOffset: workspaceBar.yOffset,
-            workspaceBarAccentColorRed: workspaceBar.accentColor.red,
-            workspaceBarAccentColorGreen: workspaceBar.accentColor.green,
-            workspaceBarAccentColorBlue: workspaceBar.accentColor.blue,
-            workspaceBarAccentColorAlpha: workspaceBar.accentColor.alpha,
-            workspaceBarTextColorRed: workspaceBar.textColor.red,
-            workspaceBarTextColorGreen: workspaceBar.textColor.green,
-            workspaceBarTextColorBlue: workspaceBar.textColor.blue,
-            workspaceBarTextColorAlpha: workspaceBar.textColor.alpha,
+            workspaceBarAccentColor: workspaceBar.accentColor?.settingsColor,
+            workspaceBarTextColor: workspaceBar.textColor?.settingsColor,
             workspaceBarLabelFontSize: workspaceBar.labelFontSize,
             monitorBarSettings: monitorBarOverrides,
             appRules: appRules,

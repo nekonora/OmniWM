@@ -29,6 +29,13 @@ struct QuakeTerminalFrameExport: Equatable {
     }
 }
 
+struct SettingsColor: Codable, Equatable {
+    var red: Double
+    var green: Double
+    var blue: Double
+    var alpha: Double
+}
+
 struct SettingsExport: Equatable {
     var hotkeysEnabled: Bool
     var focusFollowsMouse: Bool
@@ -77,14 +84,8 @@ struct SettingsExport: Equatable {
     var workspaceBarBackgroundOpacity: Double
     var workspaceBarXOffset: Double
     var workspaceBarYOffset: Double
-    var workspaceBarAccentColorRed: Double
-    var workspaceBarAccentColorGreen: Double
-    var workspaceBarAccentColorBlue: Double
-    var workspaceBarAccentColorAlpha: Double
-    var workspaceBarTextColorRed: Double
-    var workspaceBarTextColorGreen: Double
-    var workspaceBarTextColorBlue: Double
-    var workspaceBarTextColorAlpha: Double
+    var workspaceBarAccentColor: SettingsColor?
+    var workspaceBarTextColor: SettingsColor?
     var workspaceBarLabelFontSize: Double
     var monitorBarSettings: [MonitorBarSettings]
 
@@ -183,14 +184,8 @@ extension SettingsExport {
             workspaceBarBackgroundOpacity: 0.1,
             workspaceBarXOffset: 0.0,
             workspaceBarYOffset: 0.0,
-            workspaceBarAccentColorRed: -1,
-            workspaceBarAccentColorGreen: -1,
-            workspaceBarAccentColorBlue: -1,
-            workspaceBarAccentColorAlpha: 1,
-            workspaceBarTextColorRed: -1,
-            workspaceBarTextColorGreen: -1,
-            workspaceBarTextColorBlue: -1,
-            workspaceBarTextColorAlpha: 1,
+            workspaceBarAccentColor: nil,
+            workspaceBarTextColor: nil,
             workspaceBarLabelFontSize: 12,
             monitorBarSettings: [],
             appRules: BuiltInSettingsDefaults.appRules,
