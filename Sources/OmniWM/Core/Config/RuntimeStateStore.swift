@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
+import Darwin
 import Foundation
 
 struct RuntimeState: Codable, Equatable {
@@ -10,7 +11,7 @@ struct RuntimeState: Codable, Equatable {
 
 @MainActor
 final class RuntimeStateStore {
-    nonisolated static let defaultDirectoryURL = SettingsFilePersistence.defaultDirectoryURL
+    nonisolated static let defaultDirectoryURL = OmniWMStoragePaths.live.stateDirectory
     nonisolated static let fileName = "runtime-state.json"
     nonisolated static let defaultHiddenBarIsCollapsed = true
     nonisolated static var fileURL: URL {
@@ -108,10 +109,50 @@ final class RuntimeStateStore {
     private func write(_ state: RuntimeState) {
         do {
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+            try Self.applyPermissions(S_IRWXU, to: directoryURL)
             let data = try JSONEncoder().encode(state)
-            try data.write(to: fileURL, options: .atomic)
+            try Self.writePrivateData(data, to: fileURL)
         } catch {
             report("Failed to save \(fileURL.path): \(error.localizedDescription)")
+        }
+    }
+
+    private static func writePrivateData(_ data: Data, to fileURL: URL) throws {
+        let directoryURL = fileURL.deletingLastPathComponent()
+        let tempURL = directoryURL.appendingPathComponent(".\(fileName).\(UUID().uuidString).tmp", isDirectory: false)
+
+        do {
+            try data.write(to: tempURL, options: .withoutOverwriting)
+            try applyPermissions(S_IRUSR | S_IWUSR, to: tempURL)
+            try replaceItem(at: fileURL, with: tempURL)
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw error
+        }
+    }
+
+    private static func applyPermissions(_ permissions: mode_t, to url: URL) throws {
+        let result = url.withUnsafeFileSystemRepresentation { path -> CInt in
+            guard let path else { return -1 }
+            return Darwin.chmod(path, permissions)
+        }
+
+        guard result == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+    }
+
+    private static func replaceItem(at destinationURL: URL, with sourceURL: URL) throws {
+        let result = sourceURL.withUnsafeFileSystemRepresentation { sourcePath -> CInt in
+            guard let sourcePath else { return -1 }
+            return destinationURL.withUnsafeFileSystemRepresentation { destinationPath -> CInt in
+                guard let destinationPath else { return -1 }
+                return Darwin.rename(sourcePath, destinationPath)
+            }
+        }
+
+        guard result == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
     }
 

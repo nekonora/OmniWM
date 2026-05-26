@@ -87,6 +87,7 @@ func withCGSEventObserverIsolationForTests<T>(
 }
 
 private let testConfigurationDirectoryKey = "__omniwm.test.configurationDirectory"
+private let testRuntimeStateDirectoryKey = "__omniwm.test.runtimeStateDirectory"
 
 func configurationDirectoryForTests(defaults: UserDefaults) -> URL {
     if let path = defaults.string(forKey: testConfigurationDirectoryKey) {
@@ -101,10 +102,23 @@ func configurationDirectoryForTests(defaults: UserDefaults) -> URL {
     return directory
 }
 
+func runtimeStateDirectoryForTests(defaults: UserDefaults) -> URL {
+    if let path = defaults.string(forKey: testRuntimeStateDirectoryKey) {
+        return URL(fileURLWithPath: path, isDirectory: true)
+    }
+
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("omniwm-state-tests", isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defaults.set(directory.path, forKey: testRuntimeStateDirectoryKey)
+    return directory
+}
+
 @MainActor
 func runtimeStateStoreForTests(defaults: UserDefaults) -> RuntimeStateStore {
     RuntimeStateStore(
-        directory: configurationDirectoryForTests(defaults: defaults),
+        directory: runtimeStateDirectoryForTests(defaults: defaults),
         deferSaves: false
     )
 }
@@ -113,6 +127,7 @@ func runtimeStateStoreForTests(defaults: UserDefaults) -> RuntimeStateStore {
 extension SettingsStore {
     convenience init(defaults: UserDefaults) {
         let directory = configurationDirectoryForTests(defaults: defaults)
+        let runtimeStateDirectory = runtimeStateDirectoryForTests(defaults: defaults)
         self.init(
             persistence: SettingsFilePersistence(
                 directory: directory,
@@ -120,7 +135,7 @@ extension SettingsStore {
                 deferSaves: false
             ),
             runtimeState: RuntimeStateStore(
-                directory: directory,
+                directory: runtimeStateDirectory,
                 deferSaves: false
             )
         )

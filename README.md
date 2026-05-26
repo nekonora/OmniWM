@@ -421,11 +421,11 @@ Hide or reveal status bar icons using a separator item:
 Access settings by clicking OmniWM's status bar icon and selecting **Settings** or **App Rules**.
 Mouse and gesture settings are available in Settings.
 
-OmniWM stores its editable config at `~/.config/omniwm/settings.toml`; that file is the canonical settings source and is live-reloaded when saved from an editor.
+OmniWM stores its editable config at `${XDG_CONFIG_HOME:-$HOME/.config}/omniwm/settings.toml`; that file is the canonical settings source and is live-reloaded when saved from an editor.
 
 - **Reveal Settings File** and **Edit Settings File** open the canonical TOML file and recreate it from the running settings if it was deleted.
 - `updateChecksEnabled` is part of the persisted settings model, so it round-trips through `settings.toml`.
-- Fetched release notes, release URLs, last-check timestamps, skipped-release state, and the persisted window restore catalog stay out of `settings.toml` and remain private runtime state.
+- Clipboard history, last-check timestamps, skipped-release state, hidden bar state, and the persisted window restore catalog live in `${XDG_STATE_HOME:-$HOME/.local/state}/omniwm` and stay out of dotfile-oriented config storage.
 
 ## App Rules
 

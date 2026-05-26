@@ -31,8 +31,7 @@ final class SettingsFilePersistence {
 
     private static let nanosecondsPerSecond: Int64 = 1_000_000_000
 
-    nonisolated static let defaultDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/omniwm", isDirectory: true)
+    nonisolated static let defaultDirectoryURL = OmniWMStoragePaths.live.configDirectory
     nonisolated static let fileName = "settings.toml"
     nonisolated static let corruptFileName = "settings.toml.corrupt"
     nonisolated static var fileURL: URL {

@@ -196,17 +196,20 @@ final class WMController {
 
     let animationClock = AnimationClock()
     let motionPolicy: MotionPolicy
+    private let clipboardHistoryDirectory: URL
     private let windowFocusOperations: WindowFocusOperations
     weak var statusBarController: StatusBarController?
 
     init(
         settings: SettingsStore,
         hiddenBarController: HiddenBarController? = nil,
+        clipboardHistoryDirectory: URL = OmniWMStoragePaths.live.stateDirectory,
         windowFocusOperations: WindowFocusOperations = .live
     ) {
         self.settings = settings
         motionPolicy = MotionPolicy(animationsEnabled: settings.animationsEnabled)
         self.hiddenBarController = hiddenBarController ?? HiddenBarController(settings: settings)
+        self.clipboardHistoryDirectory = clipboardHistoryDirectory
         self.windowFocusOperations = windowFocusOperations
         workspaceManager = WorkspaceManager(settings: settings)
         focusBridge = FocusBridgeCoordinator()
@@ -2431,13 +2434,13 @@ final class WMController {
         clipboardHistoryService.updateConfiguration(clipboardHistoryConfiguration())
     }
 
-    private func clipboardHistoryConfiguration() -> ClipboardHistoryConfiguration {
+    func clipboardHistoryConfiguration() -> ClipboardHistoryConfiguration {
         ClipboardHistoryConfiguration(
             isEnabled: settings.clipboardHistoryEnabled,
             maxItems: settings.clipboardMaxItems,
             maxItemBytes: settings.clipboardMaxItemBytes,
             maxTotalBytes: settings.clipboardMaxTotalBytes,
-            storageDirectory: settings.settingsFileURL.deletingLastPathComponent()
+            storageDirectory: clipboardHistoryDirectory
         )
     }
 

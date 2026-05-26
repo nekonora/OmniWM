@@ -12,6 +12,44 @@ private func makeTestDefaults() -> UserDefaults {
     return UserDefaults(suiteName: suiteName)!
 }
 
+struct OmniWMStoragePathsTests {
+    @Test func defaultsUseXDGFallbacksUnderHome() {
+        let homeDirectory = URL(fileURLWithPath: "/Users/example", isDirectory: true)
+        let paths = OmniWMStoragePaths.resolve(environment: [:], homeDirectory: homeDirectory)
+
+        #expect(paths.configDirectory.path == "/Users/example/.config/omniwm")
+        #expect(paths.stateDirectory.path == "/Users/example/.local/state/omniwm")
+    }
+
+    @Test func absoluteEnvironmentOverridesWin() {
+        let homeDirectory = URL(fileURLWithPath: "/Users/example", isDirectory: true)
+        let paths = OmniWMStoragePaths.resolve(
+            environment: [
+                "XDG_CONFIG_HOME": "/Volumes/Profile/config",
+                "XDG_STATE_HOME": "/Volumes/Profile/state"
+            ],
+            homeDirectory: homeDirectory
+        )
+
+        #expect(paths.configDirectory.path == "/Volumes/Profile/config/omniwm")
+        #expect(paths.stateDirectory.path == "/Volumes/Profile/state/omniwm")
+    }
+
+    @Test func emptyAndRelativeEnvironmentValuesFallBack() {
+        let homeDirectory = URL(fileURLWithPath: "/Users/example", isDirectory: true)
+        let paths = OmniWMStoragePaths.resolve(
+            environment: [
+                "XDG_CONFIG_HOME": "",
+                "XDG_STATE_HOME": "relative/state"
+            ],
+            homeDirectory: homeDirectory
+        )
+
+        #expect(paths.configDirectory.path == "/Users/example/.config/omniwm")
+        #expect(paths.stateDirectory.path == "/Users/example/.local/state/omniwm")
+    }
+}
+
 @MainActor struct QuakeTerminalSettingsValidationTests {
     @Test func normalizesQuakeTerminalPercentagesOnAssignment() {
         let settings = SettingsStore(defaults: makeTestDefaults())
@@ -281,13 +319,17 @@ struct MonitorSettingsStoreTests {
 
         #expect(settings.loadPersistedWindowRestoreCatalog() == catalog)
 
-        // Verify the catalog is persisted in the private runtime-state sidecar by
-        // constructing a fresh RuntimeStateStore against the same temp directory.
-        // This proves the data path is private runtime state, not UserDefaults.
         settings.flushNow()
-        let directory = configurationDirectoryForTests(defaults: defaults)
-        let fresh = RuntimeStateStore(directory: directory)
+        let configurationDirectory = configurationDirectoryForTests(defaults: defaults)
+        let runtimeStateDirectory = runtimeStateDirectoryForTests(defaults: defaults)
+        let fresh = RuntimeStateStore(directory: runtimeStateDirectory)
+
         #expect(fresh.windowRestoreCatalog == catalog)
+        #expect(
+            FileManager.default.fileExists(
+                atPath: configurationDirectory.appendingPathComponent(RuntimeStateStore.fileName).path
+            ) == false
+        )
     }
 
     @Test func persistedRestoreCatalogIsExcludedFromCanonicalSettingsFile() throws {
@@ -1368,6 +1410,25 @@ struct SettingsSectionTests {
         #expect(reloaded.hiddenBarIsCollapsed == RuntimeStateStore.defaultHiddenBarIsCollapsed)
         #expect(reloaded.updaterSkippedReleaseTag == "0.5")
     }
+
+    @Test func runtimeStatePersistsWithPrivatePermissions() throws {
+        let defaults = makeTestDefaults()
+        let directory = runtimeStateDirectoryForTests(defaults: defaults)
+        let store = RuntimeStateStore(directory: directory, deferSaves: false)
+
+        store.updaterSkippedReleaseTag = "0.5"
+
+        let fileURL = directory.appendingPathComponent(RuntimeStateStore.fileName, isDirectory: false)
+        let directoryMode = try #require(
+            FileManager.default.attributesOfItem(atPath: directory.path)[.posixPermissions] as? NSNumber
+        ).intValue
+        let fileMode = try #require(
+            FileManager.default.attributesOfItem(atPath: fileURL.path)[.posixPermissions] as? NSNumber
+        ).intValue
+
+        #expect(directoryMode & 0o777 == 0o700)
+        #expect(fileMode & 0o777 == 0o600)
+    }
 }
 
 @MainActor struct HiddenBarRuntimeStateSettingsTests {
@@ -1380,7 +1441,7 @@ struct SettingsSectionTests {
         settings.flushNow()
 
         let afterSettings = try settingsFileSnapshot(settings.settingsFileURL)
-        let runtimeState = RuntimeStateStore(directory: configurationDirectoryForTests(defaults: defaults))
+        let runtimeState = RuntimeStateStore(directory: runtimeStateDirectoryForTests(defaults: defaults))
 
         #expect(afterSettings == beforeSettings)
         #expect(runtimeState.hiddenBarIsCollapsed == false)
@@ -1388,30 +1449,32 @@ struct SettingsSectionTests {
 
     @Test func hiddenBarFlushWritesDeferredRuntimeState() {
         let defaults = makeTestDefaults()
-        let directory = configurationDirectoryForTests(defaults: defaults)
+        let configurationDirectory = configurationDirectoryForTests(defaults: defaults)
+        let runtimeStateDirectory = runtimeStateDirectoryForTests(defaults: defaults)
         let settings = SettingsStore(
-            persistence: SettingsFilePersistence(directory: directory, startWatching: false, deferSaves: false),
-            runtimeState: RuntimeStateStore(directory: directory)
+            persistence: SettingsFilePersistence(directory: configurationDirectory, startWatching: false, deferSaves: false),
+            runtimeState: RuntimeStateStore(directory: runtimeStateDirectory)
         )
 
         settings.hiddenBarIsCollapsed = false
         settings.flushNow()
 
-        let reloaded = RuntimeStateStore(directory: directory)
+        let reloaded = RuntimeStateStore(directory: runtimeStateDirectory)
         #expect(reloaded.hiddenBarIsCollapsed == false)
     }
 
     @Test func hiddenBarRuntimeStateSurvivesSettingsStoreReload() {
         let defaults = makeTestDefaults()
-        let directory = configurationDirectoryForTests(defaults: defaults)
+        let configurationDirectory = configurationDirectoryForTests(defaults: defaults)
+        let runtimeStateDirectory = runtimeStateDirectoryForTests(defaults: defaults)
         let settings = SettingsStore(defaults: defaults)
 
         settings.hiddenBarIsCollapsed = false
         settings.flushNow()
 
         let reloaded = SettingsStore(
-            persistence: SettingsFilePersistence(directory: directory, startWatching: false, deferSaves: false),
-            runtimeState: RuntimeStateStore(directory: directory, deferSaves: false)
+            persistence: SettingsFilePersistence(directory: configurationDirectory, startWatching: false, deferSaves: false),
+            runtimeState: RuntimeStateStore(directory: runtimeStateDirectory, deferSaves: false)
         )
 
         #expect(reloaded.hiddenBarIsCollapsed == false)
@@ -1419,7 +1482,8 @@ struct SettingsSectionTests {
 
     @Test func legacyHiddenBarTOMLKeyDoesNotOverrideRuntimeState() throws {
         let defaults = makeTestDefaults()
-        let directory = configurationDirectoryForTests(defaults: defaults)
+        let configurationDirectory = configurationDirectoryForTests(defaults: defaults)
+        let runtimeStateDirectory = runtimeStateDirectoryForTests(defaults: defaults)
         var export = SettingsExport.defaults()
         export.commandPaletteLastMode = CommandPaletteMode.clipboard.rawValue
         var toml = try #require(String(data: SettingsTOMLCodec.encode(export), encoding: .utf8))
@@ -1428,13 +1492,13 @@ struct SettingsSectionTests {
             with: "commandPaletteLastMode = \"clipboard\"\nhiddenBarIsCollapsed = false"
         )
         try #require(toml.contains("hiddenBarIsCollapsed = false"))
-        let settingsURL = directory.appendingPathComponent("settings.toml", isDirectory: false)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let settingsURL = configurationDirectory.appendingPathComponent("settings.toml", isDirectory: false)
+        try FileManager.default.createDirectory(at: configurationDirectory, withIntermediateDirectories: true)
         try Data(toml.utf8).write(to: settingsURL)
 
         let settings = SettingsStore(
-            persistence: SettingsFilePersistence(directory: directory, startWatching: false, deferSaves: false),
-            runtimeState: RuntimeStateStore(directory: directory, deferSaves: false)
+            persistence: SettingsFilePersistence(directory: configurationDirectory, startWatching: false, deferSaves: false),
+            runtimeState: RuntimeStateStore(directory: runtimeStateDirectory, deferSaves: false)
         )
 
         #expect(settings.commandPaletteLastMode == .clipboard)
@@ -1443,10 +1507,11 @@ struct SettingsSectionTests {
 
     @Test func externalSettingsReloadDoesNotChangeHiddenBarRuntimeState() async throws {
         let defaults = makeTestDefaults()
-        let directory = configurationDirectoryForTests(defaults: defaults)
+        let configurationDirectory = configurationDirectoryForTests(defaults: defaults)
+        let runtimeStateDirectory = runtimeStateDirectoryForTests(defaults: defaults)
         let settings = SettingsStore(
-            persistence: SettingsFilePersistence(directory: directory),
-            runtimeState: RuntimeStateStore(directory: directory)
+            persistence: SettingsFilePersistence(directory: configurationDirectory),
+            runtimeState: RuntimeStateStore(directory: runtimeStateDirectory)
         )
         settings.hiddenBarIsCollapsed = false
         settings.flushNow()
@@ -1463,6 +1528,25 @@ struct SettingsSectionTests {
 
         #expect(reloaded)
         #expect(settings.hiddenBarIsCollapsed == false)
+    }
+}
+
+@MainActor struct ClipboardHistoryStoragePathTests {
+    @Test func controllerUsesStateDirectoryForClipboardHistory() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsStore(defaults: defaults)
+        let stateDirectory = runtimeStateDirectoryForTests(defaults: defaults)
+        let controller = WMController(settings: settings, clipboardHistoryDirectory: stateDirectory)
+        let configuration = controller.clipboardHistoryConfiguration()
+
+        #expect(configuration.storageDirectory == stateDirectory)
+        #expect(
+            configuration.storageURL == stateDirectory.appendingPathComponent(
+                ClipboardHistoryConfiguration.fileName,
+                isDirectory: false
+            )
+        )
+        #expect(configuration.storageDirectory != settings.settingsFileURL.deletingLastPathComponent())
     }
 }
 

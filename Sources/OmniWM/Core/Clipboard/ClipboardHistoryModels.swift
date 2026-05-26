@@ -9,6 +9,8 @@ enum ClipboardContentKind: String, Codable, Hashable, Sendable {
 }
 
 struct ClipboardHistoryConfiguration: Equatable, Sendable {
+    static let fileName = "clipboard-history.json"
+
     var isEnabled: Bool
     var maxItems: Int
     var maxItemBytes: Int
@@ -16,7 +18,7 @@ struct ClipboardHistoryConfiguration: Equatable, Sendable {
     var storageDirectory: URL
 
     var storageURL: URL {
-        storageDirectory.appendingPathComponent("clipboard-history.json", isDirectory: false)
+        storageDirectory.appendingPathComponent(Self.fileName, isDirectory: false)
     }
 }
 

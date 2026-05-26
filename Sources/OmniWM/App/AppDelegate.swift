@@ -51,16 +51,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Settings-migration epoch persistence deleted under clean-break (PURGE-02);
         // settings.toml IS the source of truth.
 
-        let configurationDirectory = SettingsFilePersistence.defaultDirectoryURL
-        let runtimeState = RuntimeStateStore(directory: configurationDirectory)
+        let storagePaths = OmniWMStoragePaths.live
+        let runtimeState = RuntimeStateStore(directory: storagePaths.stateDirectory)
         self.runtimeStateStore = runtimeState
 
         let settings = SettingsStore(
-            persistence: SettingsFilePersistence(directory: configurationDirectory),
+            persistence: SettingsFilePersistence(directory: storagePaths.configDirectory),
             runtimeState: runtimeState
         )
         let hiddenBarController = HiddenBarController(settings: settings)
-        let controller = WMController(settings: settings, hiddenBarController: hiddenBarController)
+        let controller = WMController(
+            settings: settings,
+            hiddenBarController: hiddenBarController,
+            clipboardHistoryDirectory: storagePaths.stateDirectory
+        )
         controller.applyPersistedSettings(settings)
         let cliManager = AppCLIManager()
         let updateCoordinator = Self.updateCoordinatorFactoryForTests?(settings, controller, runtimeState)
