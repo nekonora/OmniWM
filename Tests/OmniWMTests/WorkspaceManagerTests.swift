@@ -1549,6 +1549,8 @@ private func workspaceConfigurations(
         )
         manager.setLayoutReason(.nativeFullscreen, for: suspended)
 
+        #expect(!manager.showsNativeFullscreenPlaceholder(for: suspended.id))
+
         manager.removeMissing(keys: [], requiredConsecutiveMisses: 2)
         manager.removeMissing(keys: [], requiredConsecutiveMisses: 2)
 

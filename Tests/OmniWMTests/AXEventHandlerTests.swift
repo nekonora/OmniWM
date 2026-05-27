@@ -2008,6 +2008,43 @@ private func waitUntilAXEventTest(
         #expect(controller.layoutRefreshController.debugCounters.relayoutExecutions == 0)
     }
 
+    @Test @MainActor func ownedUtilityWindowFrameChangeIsSkippedBeforeWindowResolution() async {
+        let controller = makeAXEventTestController()
+        let registry = OwnedWindowRegistry.shared
+        let ownedWindow = makeAXEventOwnedWindow()
+
+        registry.resetForTests()
+        registry.register(ownedWindow)
+        defer {
+            registry.unregister(ownedWindow)
+            ownedWindow.close()
+            registry.resetForTests()
+            controller.axEventHandler.windowInfoProvider = nil
+        }
+
+        var windowInfoLookups = 0
+        var relayoutReasons: [RefreshReason] = []
+        controller.axEventHandler.windowInfoProvider = { _ in
+            windowInfoLookups += 1
+            return nil
+        }
+        controller.layoutRefreshController.resetDebugState()
+        controller.layoutRefreshController.debugHooks.onRelayout = { reason, _ in
+            relayoutReasons.append(reason)
+            return true
+        }
+
+        controller.axEventHandler.cgsEventObserver(
+            CGSEventObserver.shared,
+            didReceive: .frameChanged(windowId: UInt32(ownedWindow.windowNumber))
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(windowInfoLookups == 0)
+        #expect(relayoutReasons.isEmpty)
+        #expect(controller.layoutRefreshController.debugCounters.relayoutExecutions == 0)
+    }
+
     @Test @MainActor func systemTextInputAgentCreateIsIgnoredWithoutFloatingLifecycle() async {
         var events: [AXEventFocusOperationEvent] = []
         let operations = WindowFocusOperations(
@@ -10114,7 +10151,7 @@ private func waitUntilAXEventTest(
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
     }
 
-    @Test @MainActor func trackedFloatingAppDeactivationClearsFocusedBorderTargetAndEntersNonManagedFocus() {
+    @Test @MainActor func trackedFloatingAppDeactivationClearsFocusedBorderTargetWithoutChangingFocusState() {
         let controller = makeAXEventTestController()
         guard let workspaceId = controller.activeWorkspace()?.id else {
             Issue.record("Missing active workspace")
@@ -10143,7 +10180,7 @@ private func waitUntilAXEventTest(
 
         #expect(controller.currentKeyboardFocusTargetForRendering() == nil)
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
-        #expect(controller.workspaceManager.isNonManagedFocusActive)
+        #expect(!controller.workspaceManager.isNonManagedFocusActive)
         #expect(controller.workspaceManager.focusedToken == token)
         #expect(!controller.updateManagedKeyboardFocusBorder(
             token: token,
@@ -10230,7 +10267,7 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.focusedToken == floatingToken)
         #expect(controller.workspaceManager.pendingFocusedToken == pendingToken)
         #expect(controller.focusBridge.activeManagedRequest?.token == pendingToken)
-        #expect(controller.workspaceManager.isNonManagedFocusActive)
+        #expect(!controller.workspaceManager.isNonManagedFocusActive)
         #expect(!controller.updateManagedKeyboardFocusBorder(
             token: floatingToken,
             preferredFrame: CGRect(x: 80, y: 84, width: 520, height: 360)
@@ -10238,7 +10275,7 @@ private func waitUntilAXEventTest(
         #expect(lastAppliedBorderWindowId(on: controller) == nil)
     }
 
-    @Test @MainActor func nonManagedActivationSchedulesAXContextWarmupAndKeepsExistingFocusSemantics() {
+    @Test @MainActor func nonManagedActivationKeepsExistingFocusSemanticsWithoutAXContextWarmup() {
         let controller = makeAXEventTestController()
         guard let workspaceId = controller.activeWorkspace()?.id else {
             Issue.record("Missing active workspace")
@@ -10276,7 +10313,7 @@ private func waitUntilAXEventTest(
             source: .workspaceDidActivateApplication
         )
 
-        #expect(warmedPIDs == [unmanagedToken.pid])
+        #expect(warmedPIDs.isEmpty)
         #expect(controller.currentKeyboardFocusTargetForRendering()?.token == unmanagedToken)
         #expect(controller.workspaceManager.isNonManagedFocusActive)
         #expect(controller.workspaceManager.focusedToken == nil)

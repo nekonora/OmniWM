@@ -356,7 +356,7 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         }
     }
 
-    @Test @MainActor func niriLayoutPlanCreatesResizePlaceholderAfterAXVerificationMismatchSizeRefusal() async throws {
+    @Test @MainActor func niriLayoutPlanCreatesResizePlaceholderWhenVerificationMismatchHasConstraintProof() async throws {
         try await withAXFrameProviderIsolationForTests {
             let controller = makeLayoutPlanTestController()
             guard let monitor = controller.workspaceManager.monitors.first,
@@ -389,6 +389,15 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
                 y: targetFrame.minY,
                 width: targetFrame.width + 240,
                 height: targetFrame.height
+            )
+            let minimumSize = CGSize(width: targetFrame.width + 120, height: targetFrame.height)
+            controller.workspaceManager.setCachedConstraints(
+                WindowSizeConstraints(
+                    minSize: minimumSize,
+                    maxSize: .zero,
+                    isFixed: false
+                ),
+                for: token
             )
             controller.axManager.confirmFrameWrite(
                 for: token.windowId,
@@ -426,7 +435,7 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
             }
 
             #expect(createdPlaceholder)
-            #expect(controller.workspaceManager.resizePlaceholderState(for: token)?.minimumSize.width == observedFrame.width)
+            #expect(controller.workspaceManager.resizePlaceholderState(for: token)?.minimumSize == minimumSize)
             #expect(controller.axManager.lastAppliedFrame(for: token.windowId) != targetFrame)
         }
     }
@@ -581,6 +590,49 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 120)
         let targetFrame = CGRect(x: 40, y: 50, width: 300, height: 240)
         let observedFrame = CGRect(x: 400, y: 450, width: 300, height: 240)
+        controller.workspaceManager.setCachedConstraints(
+            WindowSizeConstraints(
+                minSize: CGSize(width: 420, height: 320),
+                maxSize: .zero,
+                isFixed: false
+            ),
+            for: token
+        )
+        let result = AXFrameApplyResult(
+            pid: token.pid,
+            windowId: token.windowId,
+            targetFrame: targetFrame,
+            currentFrameHint: observedFrame,
+            writeResult: layoutRefreshControllerTestWriteResult(
+                targetFrame: targetFrame,
+                currentFrameHint: observedFrame,
+                observedFrame: observedFrame,
+                failureReason: .verificationMismatch
+            )
+        )
+
+        controller.layoutRefreshController.handleResizePlaceholderFrameApplyResult(
+            result,
+            workspaceId: workspaceId,
+            monitor: monitor
+        )
+
+        #expect(controller.resizePlaceholderManager.snapshotForTests()[token] == nil)
+        #expect(controller.workspaceManager.resizePlaceholderState(for: token) == nil)
+    }
+
+    @Test @MainActor func resizePlaceholderFallbackIgnoresOversizedMismatchWhenTargetSatisfiesCachedMinimum() {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace for resize placeholder oversized mismatch test")
+            return
+        }
+
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 124)
+        let targetFrame = CGRect(x: 40, y: 50, width: 500, height: 400)
+        let observedFrame = CGRect(x: 40, y: 50, width: 780, height: 560)
         controller.workspaceManager.setCachedConstraints(
             WindowSizeConstraints(
                 minSize: CGSize(width: 420, height: 320),

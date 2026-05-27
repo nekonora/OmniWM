@@ -608,6 +608,7 @@ final class AXEventHandler: CGSEventDelegate {
 
     private func handleFrameChanged(windowId: UInt32) {
         guard let controller else { return }
+        guard !controller.isOwnedWindow(windowNumber: Int(windowId)) else { return }
         let windowServerToken = resolveWindowToken(windowId)
         let resolvedToken = resolveTrackedToken(
             windowId,
@@ -697,6 +698,11 @@ final class AXEventHandler: CGSEventDelegate {
             guard resolvedToken == target.token,
                   entry.mode == .floating
             else { return nil }
+            if needsFocusedAXConfirmationForUnresolvedFrameChange(entry),
+               focusedWindowToken(for: target.pid) != target.token
+            {
+                return nil
+            }
         } else {
             guard !target.isManaged,
                   target.windowId == Int(windowId),
@@ -738,6 +744,12 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         return nil
+    }
+
+    private func needsFocusedAXConfirmationForUnresolvedFrameChange(_ entry: WindowModel.Entry) -> Bool {
+        guard let controller else { return true }
+        return entry.layoutReason == .nativeFullscreen
+            || controller.workspaceManager.nativeFullscreenRecord(for: entry.token) != nil
     }
 
     private func observedFrame(for entry: WindowModel.Entry) -> CGRect? {
@@ -1339,7 +1351,6 @@ final class AXEventHandler: CGSEventDelegate {
         )
         _ = controller.workspaceManager.enterNonManagedFocus(appFullscreen: fallbackFullscreen)
         _ = controller.focusBorderController.focusChanged(to: target, forceOrdering: true)
-        scheduleAXContextWarmup(for: pid)
 
         recordNiriCreateFocusTrace(
             .init(
@@ -1510,6 +1521,7 @@ final class AXEventHandler: CGSEventDelegate {
         cancelNativeFullscreenLifecycleTasks(containing: entry.token)
         let restored = controller.workspaceManager.restoreNativeFullscreenRecord(for: entry.token) != nil || hadRecord
         if restored {
+            controller.layoutRefreshController.markNativeFullscreenRestoredForFrameApply(entry.token)
             controller.nativeFullscreenPlaceholderManager.remove(entry.token)
             controller.clearResizePlaceholder(for: entry.token)
         }
@@ -1558,6 +1570,7 @@ final class AXEventHandler: CGSEventDelegate {
                 scheduledRelayout = suspendManagedWindowForNativeFullscreen(entry)
             } else {
                 _ = controller.workspaceManager.restoreNativeFullscreenRecord(for: token)
+                controller.layoutRefreshController.markNativeFullscreenRestoredForFrameApply(token)
                 controller.nativeFullscreenPlaceholderManager.remove(token)
                 controller.clearResizePlaceholder(for: token)
                 scheduledRelayout = false
@@ -1576,6 +1589,7 @@ final class AXEventHandler: CGSEventDelegate {
             scheduledRelayout = suspendManagedWindowForNativeFullscreen(entry)
         } else {
             _ = controller.workspaceManager.restoreNativeFullscreenRecord(for: token)
+            controller.layoutRefreshController.markNativeFullscreenRestoredForFrameApply(token)
             controller.nativeFullscreenPlaceholderManager.remove(token)
             controller.clearResizePlaceholder(for: token)
             scheduledRelayout = false
@@ -1747,11 +1761,7 @@ final class AXEventHandler: CGSEventDelegate {
               entry.mode == .floating
         else { return }
 
-        _ = controller.workspaceManager.enterNonManagedFocus(
-            appFullscreen: false,
-            preserveFocusedToken: true,
-            preservePendingManagedFocus: true
-        )
+        controller.focusBorderController.suppressManagedTarget(clearedTarget.token)
     }
 
     func handleAppUnhidden(pid: pid_t) {

@@ -28,6 +28,7 @@ final class FocusBorderController {
     private let borderManager: BorderManager
     private var lastAXConfirmedTarget: KeyboardFocusTarget?
     private var requiresFocusValidationBeforeRender = false
+    private var suppressedManagedTargets: Set<WindowToken> = []
 
     init(
         controller: WMController,
@@ -46,6 +47,9 @@ final class FocusBorderController {
     ) -> Bool {
         lastAXConfirmedTarget = target
         requiresFocusValidationBeforeRender = false
+        if let target {
+            suppressedManagedTargets.remove(target.token)
+        }
         return refresh(
             preferredFrame: preferredFrame,
             preferredFrameSource: preferredFrameSource,
@@ -114,6 +118,7 @@ final class FocusBorderController {
         matching token: WindowToken? = nil,
         pid: pid_t? = nil
     ) {
+        clearSuppressedManagedTargets(matching: token, pid: pid)
         guard let target = lastAXConfirmedTarget else { return }
         let matchesToken = token.map { target.token == $0 } ?? true
         let matchesPid = pid.map { target.pid == $0 } ?? true
@@ -140,6 +145,9 @@ final class FocusBorderController {
         axRef: AXWindowRef,
         workspaceId: WorkspaceDescriptor.ID?
     ) {
+        if suppressedManagedTargets.remove(oldToken) != nil {
+            suppressedManagedTargets.insert(newToken)
+        }
         guard let target = lastAXConfirmedTarget,
               target.token == oldToken
         else { return }
@@ -185,7 +193,16 @@ final class FocusBorderController {
     func cleanup() {
         lastAXConfirmedTarget = nil
         requiresFocusValidationBeforeRender = false
+        suppressedManagedTargets.removeAll()
         borderManager.cleanup()
+    }
+
+    func suppressManagedTarget(_ token: WindowToken) {
+        suppressedManagedTargets.insert(token)
+    }
+
+    func isManagedTargetSuppressed(_ token: WindowToken) -> Bool {
+        suppressedManagedTargets.contains(token)
     }
 
     var currentTarget: KeyboardFocusTarget? {
@@ -251,7 +268,14 @@ final class FocusBorderController {
         if target.isManaged,
            controller.workspaceManager.entry(for: target.token) == nil
         {
+            suppressedManagedTargets.remove(target.token)
             return .clear
+        }
+
+        if target.isManaged,
+           suppressedManagedTargets.contains(target.token)
+        {
+            return .hide
         }
 
         if controller.workspaceManager.hasPendingNativeFullscreenTransition {
@@ -278,6 +302,19 @@ final class FocusBorderController {
         guard let controller else { return false }
         guard controller.hasStartedServices else { return true }
         return controller.axEventHandler.focusedWindowToken(for: target.pid) == target.token
+    }
+
+    private func clearSuppressedManagedTargets(
+        matching token: WindowToken?,
+        pid: pid_t?
+    ) {
+        if let token {
+            suppressedManagedTargets.remove(token)
+            return
+        }
+        if let pid {
+            suppressedManagedTargets = suppressedManagedTargets.filter { $0.pid != pid }
+        }
     }
 
     private func resolveFrame(

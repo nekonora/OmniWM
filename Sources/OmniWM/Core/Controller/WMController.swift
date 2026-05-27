@@ -1804,6 +1804,7 @@ final class WMController {
     func clearResizePlaceholder(for token: WindowToken, restoreFrameWrites: Bool = true) {
         let hadPlaceholder = workspaceManager.resizePlaceholderState(for: token) != nil
             || resizePlaceholderManager.hasPlaceholder(for: token)
+        layoutRefreshController.clearResizePlaceholderFallbackEvidence(for: token)
         resizePlaceholderManager.remove(token)
         workspaceManager.setResizePlaceholderState(nil, for: token)
         guard restoreFrameWrites, hadPlaceholder else { return }
@@ -3026,7 +3027,8 @@ extension WMController {
                 forceOrdering: forceOrdering
             )
         }
-        guard !workspaceManager.isNonManagedFocusActive,
+        guard !focusBorderController.isManagedTargetSuppressed(token),
+              !workspaceManager.isNonManagedFocusActive,
               workspaceManager.focusedToken == token,
               let target = managedKeyboardFocusTarget(for: token)
         else {

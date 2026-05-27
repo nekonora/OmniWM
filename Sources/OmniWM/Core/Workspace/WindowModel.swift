@@ -675,10 +675,13 @@ final class WindowModel {
 
     func restoreFromNativeState(for token: WindowToken) -> ParentKind? {
         guard let entry = entries[token],
-              entry.layoutReason != .standard,
-              let prevKind = entry.prevParentKind else { return nil }
+              entry.layoutReason != .standard
+        else { return nil }
+        let prevKind = entry.prevParentKind
         entry.layoutReason = .standard
-        entry.parentKind = prevKind
+        if let prevKind {
+            entry.parentKind = prevKind
+        }
         entry.prevParentKind = nil
         return prevKind
     }

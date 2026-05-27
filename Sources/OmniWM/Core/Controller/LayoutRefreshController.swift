@@ -132,6 +132,11 @@ import QuartzCore
         var delayedVerificationScheduled: Bool = false
     }
 
+    private struct ResizePlaceholderFallbackEvidence {
+        let targetFrame: CGRect
+        let minimumSize: CGSize
+    }
+
     struct LayoutState {
         struct ClosingAnimation {
             let windowId: Int
@@ -178,6 +183,8 @@ import QuartzCore
     private var activeFrameContext: RefreshFrameContext?
     private var pendingRevealTransactionsByWindowId: [Int: PendingRevealTransaction] = [:]
     private var pendingRevealVerificationTasksByWindowId: [Int: Task<Void, Never>] = [:]
+    private var nativeFullscreenRestoredFrameApplyTokens: Set<WindowToken> = []
+    private var pendingResizePlaceholderFallbackEvidenceByToken: [WindowToken: ResizePlaceholderFallbackEvidence] = [:]
 
     func fastFrame(for token: WindowToken, axRef: AXWindowRef) -> CGRect? {
         activeFrameContext?.fastFrame(for: token, axRef: axRef)
@@ -913,6 +920,8 @@ import QuartzCore
         layoutState.activeRefresh = nil
         layoutState.pendingRefresh = nil
         layoutState.didExecuteRefreshExecutionPlan = false
+        nativeFullscreenRestoredFrameApplyTokens.removeAll()
+        pendingResizePlaceholderFallbackEvidenceByToken.removeAll()
 
         for (_, link) in layoutState.displayLinksByDisplay {
             link.invalidate()
@@ -1266,6 +1275,7 @@ import QuartzCore
             if let existingEntry {
                 if shouldPreservePreFullscreenState {
                     _ = controller.workspaceManager.restoreNativeFullscreenRecord(for: existingEntry.token)
+                    markNativeFullscreenRestoredForFrameApply(existingEntry.token)
                     wsForWindow = existingEntry.workspaceId
                     ruleEffects = existingEntry.ruleEffects
                 } else if appFullscreen {
@@ -2945,6 +2955,19 @@ import QuartzCore
         return true
     }
 
+    func markNativeFullscreenRestoredForFrameApply(_ token: WindowToken) {
+        nativeFullscreenRestoredFrameApplyTokens.insert(token)
+        pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: token)
+    }
+
+    func consumeNativeFullscreenRestoredFrameApply(for token: WindowToken) -> Bool {
+        nativeFullscreenRestoredFrameApplyTokens.remove(token) != nil
+    }
+
+    func clearResizePlaceholderFallbackEvidence(for token: WindowToken) {
+        pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: token)
+    }
+
     func handleResizePlaceholderFrameApplyResult(
         _ result: AXFrameApplyResult,
         workspaceId: WorkspaceDescriptor.ID,
@@ -2960,11 +2983,13 @@ import QuartzCore
         }
 
         if let confirmedFrame = result.confirmedFrame {
+            pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
             controller.axManager.confirmFrameWrite(for: result.windowId, frame: confirmedFrame)
             return
         }
 
         if liveFrameMatchesTarget(for: entry, targetFrame: result.targetFrame) {
+            pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
             controller.axManager.confirmFrameWrite(for: result.windowId, frame: result.targetFrame)
             return
         }
@@ -2982,6 +3007,7 @@ import QuartzCore
             minimumSize: minimumSize
         )
         controller.workspaceManager.setResizePlaceholderState(state, for: entry.token)
+        pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
 
         let appInfo = controller.appInfoCache.info(for: entry.pid)
         controller.resizePlaceholderManager.update(
@@ -3013,39 +3039,86 @@ import QuartzCore
             if let constraints = controller?.workspaceManager.cachedConstraints(for: entry.token),
                targetFrameIsBelowMinimumSize(result.targetFrame, minimumSize: constraints.minSize)
             {
+                pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
                 return constraints.minSize
             }
             guard let observedSize = result.writeResult.observedFrame?.size,
                   targetSizeIsSmallerThanObservedSize(result.targetFrame.size, observedSize: observedSize)
             else {
+                pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
                 return nil
             }
             let constraints = resizePlaceholderFallbackConstraints(for: entry, observedFrame: result.writeResult.observedFrame)
-            return fallbackResizeMinimumSize(
+            let minimumSize = fallbackResizeMinimumSize(
                 targetSize: result.targetFrame.size,
                 observedSize: observedSize,
                 constraints: constraints
+            )
+            if targetFrameIsBelowMinimumSize(result.targetFrame, minimumSize: constraints.minSize) {
+                pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
+                return minimumSize
+            }
+            return confirmedResizePlaceholderFallbackMinimumSize(
+                for: entry.token,
+                windowId: result.windowId,
+                targetFrame: result.targetFrame,
+                minimumSize: minimumSize
             )
         case .verificationMismatch:
             guard let observedSize = result.writeResult.observedFrame?.size,
                   targetSizeIsSmallerThanObservedSize(result.targetFrame.size, observedSize: observedSize)
             else {
+                pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
                 return nil
             }
             if let constraints = controller?.workspaceManager.cachedConstraints(for: entry.token),
                targetFrameIsBelowMinimumSize(result.targetFrame, minimumSize: constraints.minSize)
             {
+                pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
                 return constraints.minSize
             }
             let constraints = resizePlaceholderFallbackConstraints(for: entry, observedFrame: result.writeResult.observedFrame)
-            return fallbackResizeMinimumSize(
+            let minimumSize = fallbackResizeMinimumSize(
                 targetSize: result.targetFrame.size,
                 observedSize: observedSize,
                 constraints: constraints
             )
+            if targetFrameIsBelowMinimumSize(result.targetFrame, minimumSize: constraints.minSize) {
+                pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
+                return minimumSize
+            }
+            return confirmedResizePlaceholderFallbackMinimumSize(
+                for: entry.token,
+                windowId: result.windowId,
+                targetFrame: result.targetFrame,
+                minimumSize: minimumSize
+            )
         default:
+            pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
             return nil
         }
+    }
+
+    private func confirmedResizePlaceholderFallbackMinimumSize(
+        for token: WindowToken,
+        windowId: Int,
+        targetFrame: CGRect,
+        minimumSize: CGSize
+    ) -> CGSize? {
+        if let evidence = pendingResizePlaceholderFallbackEvidenceByToken[token],
+           evidence.targetFrame.approximatelyEqual(to: targetFrame, tolerance: 0.5),
+           sizesApproximatelyEqual(evidence.minimumSize, minimumSize)
+        {
+            pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: token)
+            return minimumSize
+        }
+
+        pendingResizePlaceholderFallbackEvidenceByToken[token] = ResizePlaceholderFallbackEvidence(
+            targetFrame: targetFrame,
+            minimumSize: minimumSize
+        )
+        controller?.axManager.forceApplyNextFrame(for: windowId)
+        return nil
     }
 
     private func resizePlaceholderFallbackConstraints(
@@ -3073,6 +3146,11 @@ import QuartzCore
     private func targetSizeIsSmallerThanObservedSize(_ targetSize: CGSize, observedSize: CGSize) -> Bool {
         targetSize.width + 0.5 < observedSize.width
             || targetSize.height + 0.5 < observedSize.height
+    }
+
+    private func sizesApproximatelyEqual(_ lhs: CGSize, _ rhs: CGSize) -> Bool {
+        abs(lhs.width - rhs.width) <= 0.5
+            && abs(lhs.height - rhs.height) <= 0.5
     }
 
     private func fallbackResizeMinimumSize(
@@ -3393,10 +3471,16 @@ final class LayoutDiffExecutor {
             if pendingRevealTokens.contains(change.token) {
                 revealFrameUpdates.append((entry.pid, entry.windowId, change.frame))
             } else {
+                let forceNativeFullscreenRestoreApply = refreshController
+                    .consumeNativeFullscreenRestoredFrameApply(for: change.token)
                 if change.forceApply {
                     controller.axManager.forceApplyNextFrame(for: entry.windowId)
                 }
-                if refreshController.shouldObserveResizePlaceholderFallback(entry: entry, targetFrame: change.frame) {
+                if forceNativeFullscreenRestoreApply {
+                    controller.axManager.forceApplyNextFrame(for: entry.windowId)
+                    refreshController.clearResizePlaceholderFallbackEvidence(for: change.token)
+                    frameUpdates.append((entry.pid, entry.windowId, change.frame))
+                } else if refreshController.shouldObserveResizePlaceholderFallback(entry: entry, targetFrame: change.frame) {
                     resizeProbeFrameUpdates.append((entry.pid, entry.windowId, change.frame))
                 } else {
                     frameUpdates.append((entry.pid, entry.windowId, change.frame))

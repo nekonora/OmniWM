@@ -2233,7 +2233,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             to: workspaceId
         )
         _ = controller.workspaceManager.rememberFocus(token, in: workspaceId)
-        controller.workspaceManager.setLayoutReason(.nativeFullscreen, for: token)
+        _ = controller.workspaceManager.requestNativeFullscreenEnter(token, in: workspaceId)
+        _ = controller.workspaceManager.markNativeFullscreenSuspended(token)
         _ = controller.workspaceManager.enterNonManagedFocus(appFullscreen: true)
 
         lifecycleManager.handleActiveSpaceDidChange()

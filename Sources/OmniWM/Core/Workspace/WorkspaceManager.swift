@@ -2755,8 +2755,9 @@ final class WorkspaceManager {
     }
 
     func restoreFromNativeState(for token: WindowToken) -> ParentKind? {
+        let wasNative = layoutReason(for: token) != .standard
         let restored = windows.restoreFromNativeState(for: token)
-        if restored != nil, let workspaceId = workspace(for: token) {
+        if (restored != nil || wasNative), let workspaceId = workspace(for: token) {
             recordReconcileEvent(
                 .nativeFullscreenTransition(
                     token: token,
@@ -2776,7 +2777,7 @@ final class WorkspaceManager {
 
     func showsNativeFullscreenPlaceholder(for token: WindowToken) -> Bool {
         guard layoutReason(for: token) == .nativeFullscreen else { return false }
-        guard let record = nativeFullscreenRecord(for: token) else { return true }
+        guard let record = nativeFullscreenRecord(for: token) else { return false }
         return record.currentToken == token && record.availability == .present && record.transition != .enterRequested
     }
 
