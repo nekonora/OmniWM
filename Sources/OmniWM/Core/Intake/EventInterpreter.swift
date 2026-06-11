@@ -60,6 +60,22 @@ final class EventInterpreter: EventIntakeSink {
         case let .ipcCommand(intake):
             intake.completion(intake.perform(controller))
 
+        case let .mouseDragged(button, location):
+            controller.mouseEventHandler.dispatchQueuedMouseDragged(at: location, button: button)
+
+        case let .mouseMoved(location):
+            controller.mouseEventHandler.dispatchMouseMoved(at: location)
+
+        case let .mouseScroll(payload):
+            controller.mouseEventHandler.dispatchScrollWheel(
+                at: payload.location,
+                deltaX: payload.deltaX,
+                deltaY: payload.deltaY,
+                momentumPhase: payload.momentumPhase,
+                phase: payload.phase,
+                modifiers: payload.modifiers
+            )
+
         case .systemSleep:
             _ = controller.workspaceManager.recordReconcileEvent(.systemSleep(source: .service))
 

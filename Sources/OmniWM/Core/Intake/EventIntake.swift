@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import os
 
@@ -16,6 +17,9 @@ enum IntakeEvent: Sendable {
     case display(DisplayConfigurationObserver.DisplayEvent)
     case hotkeyCommand(HotkeyCommand)
     case ipcCommand(IPCCommandIntake)
+    case mouseDragged(button: MouseEventHandler.MouseButton, location: CGPoint)
+    case mouseMoved(location: CGPoint)
+    case mouseScroll(MouseScrollIntake)
     case systemSleep
     case systemWake
 }
@@ -23,6 +27,46 @@ enum IntakeEvent: Sendable {
 struct IPCCommandIntake: Sendable {
     let perform: @MainActor @Sendable (WMController) -> ExternalCommandResult
     let completion: @MainActor @Sendable (ExternalCommandResult) -> Void
+}
+
+struct MouseScrollIntake: Sendable {
+    var location: CGPoint
+    var deltaX: CGFloat
+    var deltaY: CGFloat
+    let momentumPhase: UInt32
+    let phase: UInt32
+    let modifiersRawValue: UInt64
+
+    private static let axisEpsilon: CGFloat = 0.001
+
+    var modifiers: CGEventFlags {
+        CGEventFlags(rawValue: modifiersRawValue)
+    }
+
+    func matches(_ other: MouseScrollIntake) -> Bool {
+        modifiersRawValue == other.modifiersRawValue
+            && momentumPhase == other.momentumPhase
+            && phase == other.phase
+    }
+
+    func canCoalesce(_ other: MouseScrollIntake) -> Bool {
+        axisSignature == other.axisSignature
+    }
+
+    mutating func accumulate(_ other: MouseScrollIntake) {
+        deltaX += other.deltaX
+        deltaY += other.deltaY
+        location = other.location
+    }
+
+    private var axisSignature: (Int, Int) {
+        (Self.signedAxis(deltaX), Self.signedAxis(deltaY))
+    }
+
+    private static func signedAxis(_ delta: CGFloat) -> Int {
+        guard abs(delta) > axisEpsilon else { return 0 }
+        return delta > 0 ? 1 : -1
+    }
 }
 
 struct StampedIntakeEvent: Sendable {
@@ -43,6 +87,17 @@ final class EventIntake {
         var nextSeq: UInt64 = 1
         var orderedEvents: [StampedIntakeEvent] = []
         var pendingCGSFrameWindowIds: Set<UInt32> = []
+        var openMouseMovedSeq: UInt64?
+        var openLeftDraggedSeq: UInt64?
+        var openRightDraggedSeq: UInt64?
+        var openScrollSeq: UInt64?
+
+        mutating func closeMouseCoalescingWindows() {
+            openMouseMovedSeq = nil
+            openLeftDraggedSeq = nil
+            openRightDraggedSeq = nil
+            openScrollSeq = nil
+        }
     }
 
     private nonisolated let buffer = OSAllocatedUnfairLock(initialState: Buffer())
@@ -71,6 +126,7 @@ final class EventIntake {
             state.drainScheduled = false
             state.orderedEvents.removeAll(keepingCapacity: false)
             state.pendingCGSFrameWindowIds.removeAll(keepingCapacity: false)
+            state.closeMouseCoalescingWindows()
             return dropped
         }
         sink = nil
@@ -115,12 +171,85 @@ final class EventIntake {
              let .cgs(.destroyed(windowId, _)):
             removePendingCGSFrameEvents(windowId: windowId, state: &state)
 
+        case let .mouseDragged(button, _):
+            if state.openScrollSeq != nil {
+                state.closeMouseCoalescingWindows()
+            }
+            switch button {
+            case .left:
+                if let openSeq = state.openLeftDraggedSeq,
+                   updatePendingEvent(seq: openSeq, in: &state, to: event)
+                {
+                    return
+                }
+                state.openLeftDraggedSeq = state.nextSeq
+            case .right:
+                if let openSeq = state.openRightDraggedSeq,
+                   updatePendingEvent(seq: openSeq, in: &state, to: event)
+                {
+                    return
+                }
+                state.openRightDraggedSeq = state.nextSeq
+            }
+
+        case let .mouseMoved(location):
+            if state.openScrollSeq != nil {
+                state.closeMouseCoalescingWindows()
+            }
+            if let openSeq = state.openMouseMovedSeq,
+               updatePendingEvent(seq: openSeq, in: &state, to: .mouseMoved(location: location))
+            {
+                return
+            }
+            state.openMouseMovedSeq = state.nextSeq
+
+        case let .mouseScroll(payload):
+            if let openSeq = state.openScrollSeq,
+               let index = state.orderedEvents.lastIndex(where: { $0.seq == openSeq }),
+               case let .mouseScroll(existing) = state.orderedEvents[index].event
+            {
+                if existing.matches(payload), existing.canCoalesce(payload) {
+                    var merged = existing
+                    merged.accumulate(payload)
+                    state.orderedEvents[index] = StampedIntakeEvent(seq: openSeq, event: .mouseScroll(merged))
+                    return
+                }
+                state.closeMouseCoalescingWindows()
+            }
+            state.openScrollSeq = state.nextSeq
+
         default:
             break
         }
 
         state.orderedEvents.append(StampedIntakeEvent(seq: state.nextSeq, event: event))
         state.nextSeq += 1
+    }
+
+    private nonisolated func updatePendingEvent(
+        seq: UInt64,
+        in state: inout Buffer,
+        to event: IntakeEvent
+    ) -> Bool {
+        guard let index = state.orderedEvents.lastIndex(where: { $0.seq == seq }) else { return false }
+        state.orderedEvents[index] = StampedIntakeEvent(seq: seq, event: event)
+        return true
+    }
+
+    nonisolated func removePendingMouseEvents() {
+        buffer.withLock { state in
+            state.closeMouseCoalescingWindows()
+            state.orderedEvents.removeAll { stamped in
+                switch stamped.event {
+                case .mouseDragged,
+                     .mouseMoved,
+                     .mouseScroll:
+                    return true
+                default:
+                    return false
+                }
+            }
+        }
     }
 
     private nonisolated func removePendingCGSFrameEvents(windowId: UInt32, state: inout Buffer) {
@@ -148,6 +277,7 @@ final class EventIntake {
             let events = state.orderedEvents
             state.orderedEvents.removeAll(keepingCapacity: true)
             state.pendingCGSFrameWindowIds.removeAll(keepingCapacity: true)
+            state.closeMouseCoalescingWindows()
             state.drainScheduled = false
             return events
         }

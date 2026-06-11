@@ -80,97 +80,6 @@ final class MouseEventHandler {
             case committed
         }
 
-        enum PendingTapKind {
-            case mouseMoved
-            case mouseDragged(MouseButton)
-            case scrollWheel
-        }
-
-        struct ScrollPayload {
-            var location: CGPoint
-            var deltaX: CGFloat
-            var deltaY: CGFloat
-            var momentumPhase: UInt32
-            var phase: UInt32
-            var modifiers: CGEventFlags
-
-            func matches(
-                modifiers: CGEventFlags,
-                momentumPhase: UInt32,
-                phase: UInt32
-            ) -> Bool {
-                self.modifiers == modifiers &&
-                    self.momentumPhase == momentumPhase &&
-                    self.phase == phase
-            }
-
-            func canCoalesce(deltaX: CGFloat, deltaY: CGFloat) -> Bool {
-                Self.axisSignature(deltaX: self.deltaX, deltaY: self.deltaY) ==
-                    Self.axisSignature(deltaX: deltaX, deltaY: deltaY)
-            }
-
-            mutating func accumulate(deltaX: CGFloat, deltaY: CGFloat, location: CGPoint) {
-                self.deltaX += deltaX
-                self.deltaY += deltaY
-                self.location = location
-            }
-
-            private static func axisSignature(deltaX: CGFloat, deltaY: CGFloat) -> (Int, Int) {
-                (
-                    signedAxis(deltaX),
-                    signedAxis(deltaY)
-                )
-            }
-
-            private static func signedAxis(_ delta: CGFloat) -> Int {
-                guard abs(delta) > mouseWheelAxisEpsilon else { return 0 }
-                return delta > 0 ? 1 : -1
-            }
-        }
-
-        struct PendingTapEvents {
-            var orderedKinds: [PendingTapKind] = []
-            var mouseMovedLocation: CGPoint?
-            var leftMouseDraggedLocation: CGPoint?
-            var rightMouseDraggedLocation: CGPoint?
-            var scrollPayload: ScrollPayload?
-            var drainScheduled = false
-
-            var hasPendingEvents: Bool {
-                !orderedKinds.isEmpty
-            }
-
-            mutating func setMouseDraggedLocation(_ location: CGPoint, for button: MouseButton) -> Bool {
-                switch button {
-                case .left:
-                    let didCoalesce = leftMouseDraggedLocation != nil
-                    leftMouseDraggedLocation = location
-                    return didCoalesce
-                case .right:
-                    let didCoalesce = rightMouseDraggedLocation != nil
-                    rightMouseDraggedLocation = location
-                    return didCoalesce
-                }
-            }
-
-            mutating func clear() {
-                orderedKinds.removeAll(keepingCapacity: true)
-                mouseMovedLocation = nil
-                leftMouseDraggedLocation = nil
-                rightMouseDraggedLocation = nil
-                scrollPayload = nil
-                drainScheduled = false
-            }
-        }
-
-        struct DebugCounters: Equatable {
-            var queuedTransientEvents = 0
-            var coalescedTransientEvents = 0
-            var drainedTransientEvents = 0
-            var drainRuns = 0
-            var flushedBeforeImmediateDispatch = 0
-        }
-
         var eventTap: CFMachPort?
         var runLoopSource: CFRunLoopSource?
         var gestureTap: CFMachPort?
@@ -191,8 +100,6 @@ final class MouseEventHandler {
         var gestureLastAverageX: CGFloat = 0.0
         var gestureLastAverageY: CGFloat = 0.0
         var lockedGestureContext: LockedGestureContext?
-        var pendingTapEvents = PendingTapEvents()
-        var debugCounters = DebugCounters()
         var horizontalWheelTracker = NiriScrollTracker(tick: niriWheelScrollTickAmount)
         var verticalWheelTracker = NiriScrollTracker(tick: niriWheelScrollTickAmount)
     }
@@ -304,7 +211,7 @@ final class MouseEventHandler {
         state.currentHoveredEdges = []
         state.isResizing = false
         state.activeInteractionButton = nil
-        state.pendingTapEvents.clear()
+        controller?.eventIntake.removePendingMouseEvents()
         resetGestureState()
     }
 
@@ -398,10 +305,6 @@ final class MouseEventHandler {
         state.gesturePhase != .idle
     }
 
-    func mouseTapDebugSnapshot() -> State.DebugCounters {
-        state.debugCounters
-    }
-
     func handleInputSuppressionBegan() {
         dropPendingTapEvents()
         resetMouseWheelTrackers()
@@ -409,8 +312,7 @@ final class MouseEventHandler {
     }
 
     func receiveTapMouseMoved(at location: CGPoint) {
-        flushPendingScrollBeforeNonScroll()
-        enqueuePendingMouseMoved(at: location)
+        EventIntake.post(.mouseMoved(location: location))
     }
 
     @discardableResult
@@ -422,21 +324,20 @@ final class MouseEventHandler {
         if shouldBlockOwnWindowInput(at: location) {
             dropPendingTapEvents()
         } else {
-            flushPendingTapEvents(beforeImmediateDispatch: true)
+            flushQueuedTapEventsBeforeImmediateDispatch()
         }
         return dispatchMouseDown(at: location, modifiers: modifiers, button: button)
     }
 
     func receiveTapMouseDragged(at location: CGPoint, button: MouseButton = .left) {
-        flushPendingScrollBeforeNonScroll()
-        enqueuePendingMouseDragged(at: location, button: button)
+        EventIntake.post(.mouseDragged(button: button, location: location))
     }
 
     func receiveTapMouseUp(at location: CGPoint, button: MouseButton = .left) {
         if shouldBlockOwnWindowInput(at: location) {
             dropPendingTapEvents()
         } else {
-            flushPendingTapEvents(beforeImmediateDispatch: true)
+            flushQueuedTapEventsBeforeImmediateDispatch()
         }
         dispatchMouseUp(at: location, button: button)
     }
@@ -453,13 +354,17 @@ final class MouseEventHandler {
             handleInputSuppressionBegan()
             return
         }
-        enqueuePendingScrollWheel(
-            at: location,
-            deltaX: deltaX,
-            deltaY: deltaY,
-            momentumPhase: momentumPhase,
-            phase: phase,
-            modifiers: modifiers
+        EventIntake.post(
+            .mouseScroll(
+                MouseScrollIntake(
+                    location: location,
+                    deltaX: deltaX,
+                    deltaY: deltaY,
+                    momentumPhase: momentumPhase,
+                    phase: phase,
+                    modifiersRawValue: modifiers.rawValue
+                )
+            )
         )
     }
 
@@ -472,7 +377,7 @@ final class MouseEventHandler {
         if shouldBlockOwnWindowInput(at: location) {
             dropPendingTapEvents()
         } else {
-            flushPendingTapEvents(beforeImmediateDispatch: true)
+            flushQueuedTapEventsBeforeImmediateDispatch()
         }
         guard let snapshot = Self.makeGestureEventSnapshot(from: cgEvent) else { return }
         handleGestureEvent(snapshot)
@@ -486,7 +391,7 @@ final class MouseEventHandler {
         if shouldBlockOwnWindowInput(at: snapshot.location) {
             dropPendingTapEvents()
         } else {
-            flushPendingTapEvents(beforeImmediateDispatch: true)
+            flushQueuedTapEventsBeforeImmediateDispatch()
         }
         handleGestureEvent(snapshot)
     }
@@ -497,8 +402,11 @@ final class MouseEventHandler {
     }
 
     private func dropPendingTapEvents() {
-        guard state.pendingTapEvents.hasPendingEvents else { return }
-        state.pendingTapEvents.clear()
+        controller?.eventIntake.removePendingMouseEvents()
+    }
+
+    private func flushQueuedTapEventsBeforeImmediateDispatch() {
+        controller?.eventIntake.drainNow()
     }
 
     private func resetMouseWheelTrackers() {
@@ -546,133 +454,7 @@ final class MouseEventHandler {
         }
     }
 
-    private func schedulePendingTapDrainIfNeeded() {
-        guard !state.pendingTapEvents.drainScheduled else { return }
-        state.pendingTapEvents.drainScheduled = true
-
-        let mainRunLoop = CFRunLoopGetMain()
-        CFRunLoopPerformBlock(mainRunLoop, CFRunLoopMode.commonModes.rawValue) { [weak self] in
-            guard let self else { return }
-            MainActor.assumeIsolated {
-                self.flushPendingTapEvents()
-            }
-        }
-        CFRunLoopWakeUp(mainRunLoop)
-    }
-
-    private func flushPendingScrollBeforeNonScroll() {
-        guard state.pendingTapEvents.scrollPayload != nil else { return }
-        flushPendingTapEvents()
-    }
-
-    private func enqueuePendingMouseMoved(at location: CGPoint) {
-        state.debugCounters.queuedTransientEvents += 1
-        let didCoalesce = state.pendingTapEvents.mouseMovedLocation != nil
-        state.pendingTapEvents.mouseMovedLocation = location
-        if !didCoalesce {
-            state.pendingTapEvents.orderedKinds.append(.mouseMoved)
-        } else {
-            state.debugCounters.coalescedTransientEvents += 1
-        }
-        schedulePendingTapDrainIfNeeded()
-    }
-
-    private func enqueuePendingMouseDragged(at location: CGPoint, button: MouseButton) {
-        state.debugCounters.queuedTransientEvents += 1
-        let didCoalesce = state.pendingTapEvents.setMouseDraggedLocation(location, for: button)
-        if !didCoalesce {
-            state.pendingTapEvents.orderedKinds.append(.mouseDragged(button))
-        } else {
-            state.debugCounters.coalescedTransientEvents += 1
-        }
-        schedulePendingTapDrainIfNeeded()
-    }
-
-    private func enqueuePendingScrollWheel(
-        at location: CGPoint,
-        deltaX: CGFloat,
-        deltaY: CGFloat,
-        momentumPhase: UInt32,
-        phase: UInt32,
-        modifiers: CGEventFlags
-    ) {
-        state.debugCounters.queuedTransientEvents += 1
-
-        if let existing = state.pendingTapEvents.scrollPayload,
-           (!existing.matches(modifiers: modifiers, momentumPhase: momentumPhase, phase: phase)
-               || !existing.canCoalesce(deltaX: deltaX, deltaY: deltaY))
-        {
-            flushPendingTapEvents()
-        }
-
-        if var existing = state.pendingTapEvents.scrollPayload {
-            existing.accumulate(deltaX: deltaX, deltaY: deltaY, location: location)
-            state.pendingTapEvents.scrollPayload = existing
-            state.debugCounters.coalescedTransientEvents += 1
-        } else {
-            state.pendingTapEvents.scrollPayload = .init(
-                location: location,
-                deltaX: deltaX,
-                deltaY: deltaY,
-                momentumPhase: momentumPhase,
-                phase: phase,
-                modifiers: modifiers
-            )
-            state.pendingTapEvents.orderedKinds.append(.scrollWheel)
-        }
-
-        schedulePendingTapDrainIfNeeded()
-    }
-
-    private func flushPendingTapEvents(beforeImmediateDispatch: Bool = false) {
-        guard state.pendingTapEvents.hasPendingEvents else { return }
-
-        if beforeImmediateDispatch {
-            state.debugCounters.flushedBeforeImmediateDispatch += 1
-        }
-
-        let pendingKinds = state.pendingTapEvents.orderedKinds
-        let pendingMouseMoved = state.pendingTapEvents.mouseMovedLocation
-        let pendingLeftMouseDragged = state.pendingTapEvents.leftMouseDraggedLocation
-        let pendingRightMouseDragged = state.pendingTapEvents.rightMouseDraggedLocation
-        let pendingScroll = state.pendingTapEvents.scrollPayload
-
-        state.pendingTapEvents.clear()
-        state.debugCounters.drainRuns += 1
-
-        for kind in pendingKinds {
-            switch kind {
-            case .mouseMoved:
-                if let location = pendingMouseMoved {
-                    state.debugCounters.drainedTransientEvents += 1
-                    dispatchMouseMoved(at: location)
-                }
-            case let .mouseDragged(button):
-                let location = switch button {
-                case .left: pendingLeftMouseDragged
-                case .right: pendingRightMouseDragged
-                }
-                if let location {
-                    state.debugCounters.drainedTransientEvents += 1
-                    replayQueuedMouseDragged(at: location, button: button)
-                }
-            case .scrollWheel:
-                if let payload = pendingScroll {
-                    state.debugCounters.drainedTransientEvents += 1
-                    dispatchScrollWheel(
-                        at: payload.location,
-                        deltaX: payload.deltaX,
-                        deltaY: payload.deltaY,
-                        momentumPhase: payload.momentumPhase,
-                        phase: payload.phase,
-                        modifiers: payload.modifiers
-                    )
-                }
-            }
-        }
-    }
-
-    private func replayQueuedMouseDragged(at location: CGPoint, button: MouseButton) {
+    func dispatchQueuedMouseDragged(at location: CGPoint, button: MouseButton) {
         guard !isInputSuppressed else { return }
         if shouldBlockOwnWindowInput(at: location) {
             cancelActiveMouseInteraction()
