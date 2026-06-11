@@ -2841,7 +2841,10 @@ extension WMController {
         }
     }
 
-    func focusWindow(_ token: WindowToken) {
+    func focusWindow(
+        _ token: WindowToken,
+        origin: ManagedFocusOrigin = .keyboardOrProgrammatic
+    ) {
         guard let entry = workspaceManager.entry(for: token) else { return }
         guard !isLockScreenActive else { return }
         if hasStartedServices {
@@ -2854,7 +2857,8 @@ extension WMController {
 
         let request = focusBridge.beginManagedRequest(
             token: token,
-            workspaceId: entry.workspaceId
+            workspaceId: entry.workspaceId,
+            origin: origin
         )
         _ = workspaceManager.beginManagedFocusRequest(
             token,
@@ -2876,6 +2880,7 @@ extension WMController {
 
         focusBridge.focusWindow(
             token,
+            origin: origin,
             performFocus: {
                 self.performWindowFronting(pid: pid, windowId: windowId, axRef: axRef)
                 self.axEventHandler.probeFocusedWindowAfterFronting(
@@ -2883,9 +2888,9 @@ extension WMController {
                     workspaceId: entry.workspaceId
                 )
             },
-            onDeferredFocus: { [weak self] deferred in
+            onDeferredFocus: { [weak self] deferred, deferredOrigin in
                 guard let self, self.workspaceManager.entry(for: deferred) != nil else { return }
-                self.focusWindow(deferred)
+                self.focusWindow(deferred, origin: deferredOrigin)
             }
         )
     }

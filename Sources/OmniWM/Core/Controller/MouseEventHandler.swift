@@ -181,7 +181,6 @@ final class MouseEventHandler {
         var activeInteractionButton: MouseButton?
 
         var lastFocusFollowsMouseTime: Date = .distantPast
-        var lastFocusFollowsMouseToken: WindowToken?
         let focusFollowsMouseDebounce: TimeInterval = 0.1
         var dragGhostController: DragGhostController?
         var moveIsInsertMode: Bool = false
@@ -706,12 +705,10 @@ final class MouseEventHandler {
     private func shouldHandleFocusFollowsMouse(at location: CGPoint) -> Bool {
         guard !state.isResizing, !isViewportGestureActive else { return false }
         guard let controller else { return false }
-        guard let monitor = location.monitorApproximation(in: controller.workspaceManager.monitors),
-              let workspace = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)
-        else {
+        guard let workspaceId = workspaceIdForPointer(at: location) else {
             return true
         }
-        return !controller.niriLayoutHandler.hasScrollAnimation(for: workspace.id)
+        return !controller.niriLayoutHandler.hasScrollAnimation(for: workspaceId)
     }
 
     private func handleMouseDownFromTap(
@@ -1052,39 +1049,41 @@ final class MouseEventHandler {
         guard let target = resolveFocusFollowsMouseTarget(at: location) else { return }
         let token = focusFollowsMouseToken(for: target)
 
-        if token != state.lastFocusFollowsMouseToken,
-           token != controller.workspaceManager.focusedToken
-        {
-            state.lastFocusFollowsMouseTime = now
-            state.lastFocusFollowsMouseToken = token
-            activateFocusFollowsMouseTarget(target)
-        }
+        guard token != controller.workspaceManager.focusedToken else { return }
+
+        state.lastFocusFollowsMouseTime = now
+        activateFocusFollowsMouseTarget(target)
     }
 
     private func resolveFocusFollowsMouseTarget(at location: CGPoint) -> FocusFollowsMouseTarget? {
-        guard let controller, let workspace = controller.activeWorkspace() else { return nil }
+        guard let controller,
+              let workspaceId = workspaceIdForPointer(at: location),
+              let workspace = controller.workspaceManager.descriptor(for: workspaceId)
+        else {
+            return nil
+        }
 
         switch controller.settings.layoutType(for: workspace.name) {
         case .niri,
              .defaultLayout:
             guard let engine = controller.niriEngine,
-                  let window = engine.hitTestFocusableWindow(point: location, in: workspace.id)
+                  let window = engine.hitTestFocusableWindow(point: location, in: workspaceId)
             else {
                 return nil
             }
-            return .niri(workspaceId: workspace.id, window: window)
+            return .niri(workspaceId: workspaceId, window: window)
 
         case .dwindle:
             guard let engine = controller.dwindleEngine else { return nil }
             let presentationTime = controller.animationClock.now()
             guard let token = engine.hitTestFocusableWindow(
                 point: location,
-                in: workspace.id,
+                in: workspaceId,
                 at: presentationTime
             ) else {
                 return nil
             }
-            return .dwindle(workspaceId: workspace.id, token: token)
+            return .dwindle(workspaceId: workspaceId, token: token)
         }
     }
 
@@ -1107,11 +1106,21 @@ final class MouseEventHandler {
                     window,
                     in: workspaceId,
                     state: &vstate,
-                    options: .init(ensureVisible: false, startAnimation: false)
+                    options: .init(
+                        ensureVisible: false,
+                        layoutRefresh: false,
+                        focusOrigin: .pointerHover,
+                        startAnimation: false
+                    )
                 )
             }
         case let .dwindle(workspaceId, token):
-            controller.dwindleLayoutHandler.activateWindow(token, in: workspaceId)
+            controller.dwindleLayoutHandler.activateWindow(
+                token,
+                in: workspaceId,
+                origin: .pointerHover,
+                layoutRefresh: false
+            )
         }
     }
 

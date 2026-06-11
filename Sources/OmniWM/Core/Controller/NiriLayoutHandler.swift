@@ -191,7 +191,8 @@ enum NiriWindowMoveResult {
 
         if controller.moveMouseToFocusedWindowEnabled,
            controller.workspaceManager.pendingFocusedToken == nil,
-           let token = controller.workspaceManager.focusedToken
+           let token = controller.workspaceManager.focusedToken,
+           controller.focusBridge.allowsMouseToFocusedWarp(for: token)
         {
             controller.moveMouseToWindow(token, preferredFrame: controller.preferredKeyboardFocusFrame(for: token))
         }
@@ -1638,7 +1639,7 @@ enum NiriWindowMoveResult {
                 in: workspaceId
             ) { [weak controller] in
                 if let focusToken {
-                    controller?.focusWindow(focusToken)
+                    controller?.focusWindow(focusToken, origin: options.focusOrigin)
                 }
             }
             if options.startAnimation, state.viewOffsetPixels.isAnimating {
@@ -1646,7 +1647,7 @@ enum NiriWindowMoveResult {
             }
         } else {
             if options.axFocus, let windowNode = node as? NiriWindow {
-                controller.focusWindow(windowNode.token)
+                controller.focusWindow(windowNode.token, origin: options.focusOrigin)
             }
             if options.startAnimation, state.viewOffsetPixels.isAnimating {
                 controller.layoutRefreshController.startScrollAnimation(for: workspaceId)
@@ -1982,6 +1983,7 @@ struct NodeActivationOptions {
     var updateTimestamp: Bool = true
     var layoutRefresh: Bool = true
     var axFocus: Bool = true
+    var focusOrigin: ManagedFocusOrigin = .keyboardOrProgrammatic
     var startAnimation: Bool = true
 }
 

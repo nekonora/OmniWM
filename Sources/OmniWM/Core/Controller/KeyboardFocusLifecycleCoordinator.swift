@@ -23,6 +23,22 @@ extension KeyboardFocusTarget: Equatable {
     }
 }
 
+enum ManagedFocusOrigin: Equatable {
+    case keyboardOrProgrammatic
+    case pointerHover
+
+    var allowsMouseToFocusedWarp: Bool {
+        self == .keyboardOrProgrammatic
+    }
+
+    func merged(with origin: ManagedFocusOrigin) -> ManagedFocusOrigin {
+        if self == .keyboardOrProgrammatic || origin == .keyboardOrProgrammatic {
+            return .keyboardOrProgrammatic
+        }
+        return .pointerHover
+    }
+}
+
 struct ManagedFocusRequest: Equatable {
     enum Status: Equatable {
         case pending
@@ -32,35 +48,49 @@ struct ManagedFocusRequest: Equatable {
     let requestId: UInt64
     var token: WindowToken
     var workspaceId: WorkspaceDescriptor.ID
+    var origin: ManagedFocusOrigin
     var retryCount: Int = 0
     var lastActivationSource: ActivationEventSource?
     var status: Status = .pending
+}
+
+private struct FocusOperation: Equatable {
+    var token: WindowToken
+    var origin: ManagedFocusOrigin
 }
 
 @MainActor
 final class FocusBridgeCoordinator {
     private(set) var activeManagedRequest: ManagedFocusRequest?
     private var nextRequestId: UInt64 = 1
-    private var pendingFocusToken: WindowToken?
-    private var deferredFocusToken: WindowToken?
+    private var pendingFocus: FocusOperation?
+    private var deferredFocus: FocusOperation?
+    private var lastConfirmedManagedFocus: FocusOperation?
     private var isFocusOperationPending = false
     private var lastFocusTime: Date = .distantPast
 
     func beginManagedRequest(
         token: WindowToken,
-        workspaceId: WorkspaceDescriptor.ID
+        workspaceId: WorkspaceDescriptor.ID,
+        origin: ManagedFocusOrigin = .keyboardOrProgrammatic
     ) -> ManagedFocusRequest {
-        if let activeManagedRequest,
+        if var activeManagedRequest,
            activeManagedRequest.token == token,
            activeManagedRequest.workspaceId == workspaceId
         {
+            let mergedOrigin = activeManagedRequest.origin.merged(with: origin)
+            if activeManagedRequest.origin != mergedOrigin {
+                activeManagedRequest.origin = mergedOrigin
+                self.activeManagedRequest = activeManagedRequest
+            }
             return activeManagedRequest
         }
 
         let request = ManagedFocusRequest(
             requestId: nextRequestId,
             token: token,
-            workspaceId: workspaceId
+            workspaceId: workspaceId,
+            origin: origin
         )
         nextRequestId += 1
         activeManagedRequest = request
@@ -86,6 +116,16 @@ final class FocusBridgeCoordinator {
             return nil
         }
         return activeManagedRequest
+    }
+
+    func allowsMouseToFocusedWarp(for token: WindowToken) -> Bool {
+        if let activeManagedRequest, activeManagedRequest.token == token {
+            return activeManagedRequest.origin.allowsMouseToFocusedWarp
+        }
+        if let lastConfirmedManagedFocus, lastConfirmedManagedFocus.token == token {
+            return lastConfirmedManagedFocus.origin.allowsMouseToFocusedWarp
+        }
+        return true
     }
 
     func recordRetry(
@@ -120,6 +160,10 @@ final class FocusBridgeCoordinator {
 
         activeManagedRequest.lastActivationSource = source
         activeManagedRequest.status = .confirmed
+        lastConfirmedManagedFocus = FocusOperation(
+            token: activeManagedRequest.token,
+            origin: activeManagedRequest.origin
+        )
         self.activeManagedRequest = nil
         return activeManagedRequest
     }
@@ -149,65 +193,81 @@ final class FocusBridgeCoordinator {
     }
 
     func rekeyManagedRequest(from oldToken: WindowToken, to newToken: WindowToken) {
-        guard var activeManagedRequest, activeManagedRequest.token == oldToken else {
-            return
+        if var activeManagedRequest, activeManagedRequest.token == oldToken {
+            activeManagedRequest.token = newToken
+            self.activeManagedRequest = activeManagedRequest
         }
-        activeManagedRequest.token = newToken
-        self.activeManagedRequest = activeManagedRequest
+        if var lastConfirmedManagedFocus, lastConfirmedManagedFocus.token == oldToken {
+            lastConfirmedManagedFocus.token = newToken
+            self.lastConfirmedManagedFocus = lastConfirmedManagedFocus
+        }
     }
 
     func discardPendingFocus(_ token: WindowToken) {
-        if pendingFocusToken == token {
-            pendingFocusToken = nil
+        if pendingFocus?.token == token {
+            pendingFocus = nil
         }
-        if deferredFocusToken == token {
-            deferredFocusToken = nil
+        if deferredFocus?.token == token {
+            deferredFocus = nil
+        }
+        if lastConfirmedManagedFocus?.token == token {
+            lastConfirmedManagedFocus = nil
         }
     }
 
     func rekeyPendingFocus(from oldToken: WindowToken, to newToken: WindowToken) {
-        if pendingFocusToken == oldToken {
-            pendingFocusToken = newToken
+        if var pendingFocus, pendingFocus.token == oldToken {
+            pendingFocus.token = newToken
+            self.pendingFocus = pendingFocus
         }
-        if deferredFocusToken == oldToken {
-            deferredFocusToken = newToken
+        if var deferredFocus, deferredFocus.token == oldToken {
+            deferredFocus.token = newToken
+            self.deferredFocus = deferredFocus
         }
     }
 
     func focusWindow(
         _ token: WindowToken,
+        origin: ManagedFocusOrigin,
         performFocus: () -> Void,
-        onDeferredFocus: @escaping (WindowToken) -> Void
+        onDeferredFocus: @escaping (WindowToken, ManagedFocusOrigin) -> Void
     ) {
         let now = Date()
+        let operation = FocusOperation(token: token, origin: origin)
 
-        if pendingFocusToken == token, now.timeIntervalSince(lastFocusTime) < 0.016 {
+        if pendingFocus?.token == token, now.timeIntervalSince(lastFocusTime) < 0.016 {
             return
         }
 
         if isFocusOperationPending {
-            deferredFocusToken = token
+            if var deferredFocus, deferredFocus.token == token {
+                deferredFocus.origin = deferredFocus.origin.merged(with: origin)
+                self.deferredFocus = deferredFocus
+            } else {
+                deferredFocus = operation
+            }
             return
         }
 
         isFocusOperationPending = true
-        pendingFocusToken = token
+        pendingFocus = operation
         lastFocusTime = now
 
         performFocus()
 
         isFocusOperationPending = false
-        if let deferred = deferredFocusToken, deferred != token {
-            deferredFocusToken = nil
-            onDeferredFocus(deferred)
+        if let deferredFocus, deferredFocus.token != token {
+            self.deferredFocus = nil
+            onDeferredFocus(deferredFocus.token, deferredFocus.origin)
         }
     }
 
     func reset() {
         activeManagedRequest = nil
         nextRequestId = 1
-        pendingFocusToken = nil
-        deferredFocusToken = nil
+        pendingFocus = nil
+        deferredFocus = nil
+        lastConfirmedManagedFocus = nil
         isFocusOperationPending = false
         lastFocusTime = .distantPast
     }

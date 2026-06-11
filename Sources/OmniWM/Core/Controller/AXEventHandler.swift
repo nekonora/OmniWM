@@ -2384,6 +2384,7 @@ final class AXEventHandler: CGSEventDelegate {
         }
         if shouldConfirmRequest,
            controller.moveMouseToFocusedWindowEnabled,
+           controller.focusBridge.allowsMouseToFocusedWarp(for: entry.token),
            controller.workspaceManager.focusedToken == entry.token,
            !controller.workspaceManager.isNonManagedFocusActive
         {

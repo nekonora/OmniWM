@@ -165,7 +165,12 @@ import QuartzCore
         }
     }
 
-    func activateWindow(_ token: WindowToken, in workspaceId: WorkspaceDescriptor.ID) {
+    func activateWindow(
+        _ token: WindowToken,
+        in workspaceId: WorkspaceDescriptor.ID,
+        origin: ManagedFocusOrigin = .keyboardOrProgrammatic,
+        layoutRefresh: Bool = true
+    ) {
         guard let controller,
               let engine = controller.dwindleEngine,
               controller.workspaceManager.entry(for: token)?.workspaceId == workspaceId,
@@ -184,10 +189,15 @@ import QuartzCore
                 runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId)
             )
         )
-        controller.layoutRefreshController.requestLayoutCommandRelayout(
-            affectedWorkspaceIds: [workspaceId]
-        ) { [weak controller] in
-            controller?.focusWindow(token)
+
+        if layoutRefresh {
+            controller.layoutRefreshController.requestLayoutCommandRelayout(
+                affectedWorkspaceIds: [workspaceId]
+            ) { [weak controller] in
+                controller?.focusWindow(token, origin: origin)
+            }
+        } else {
+            controller.focusWindow(token, origin: origin)
         }
     }
 
