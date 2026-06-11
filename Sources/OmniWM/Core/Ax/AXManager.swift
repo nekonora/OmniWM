@@ -457,6 +457,7 @@ final class AXManager {
 
     private func shouldTrack(_ app: NSRunningApplication) -> Bool {
         guard !app.isTerminated, app.activationPolicy != .prohibited else { return false }
+        guard app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return false }
 
         if let bundleId = app.bundleIdentifier, Self.systemUIBundleIds.contains(bundleId) {
             return false

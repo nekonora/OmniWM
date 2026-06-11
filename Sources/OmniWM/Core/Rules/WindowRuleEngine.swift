@@ -211,6 +211,7 @@ struct WindowDecisionDebugSnapshot: Equatable, Sendable {
 final class WindowRuleEngine {
     static let cleanShotBundleId = "pl.maketheweb.cleanshotx"
     static let systemTextInputPanelRuleName = "systemTextInputPanel"
+    static let ownedWindowRuleName = "ownedWindow"
     private static let cleanShotRecordingOverlayRuleName = "cleanShotRecordingOverlay"
     private static let systemTextInputPanelBundleIds: Set<String> = [
         "com.apple.characterpaletteim",

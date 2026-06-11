@@ -47,6 +47,17 @@ final class SwapTargetOverlay {
         contentView.layer?.backgroundColor = NSColor(red: 0, green: 120.0 / 255.0, blue: 1.0, alpha: 0.25).cgColor
         panel.contentView = contentView
 
+        SurfaceCoordinator.shared.register(
+            window: panel,
+            id: "swap-target-\(ObjectIdentifier(panel).hashValue)",
+            policy: SurfacePolicy(
+                kind: .dragGhost,
+                hitTestPolicy: .passthrough,
+                capturePolicy: .excluded,
+                suppressesManagedFocusRecovery: false
+            )
+        )
+
         return panel
     }
 }

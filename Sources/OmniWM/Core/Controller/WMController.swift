@@ -1854,6 +1854,9 @@ final class WMController {
         windowInfo: WindowServerInfo? = nil
     ) -> WindowDecisionEvaluation {
         let token = WindowToken(pid: pid, windowId: axRef.windowId)
+        if pid == ProcessInfo.processInfo.processIdentifier || isOwnedWindow(windowNumber: axRef.windowId) {
+            return Self.ownedWindowDispositionEvaluation(token: token)
+        }
         let sizeConstraints = evaluateSizeConstraints(for: token, axRef: axRef)
         let appInfo = resolvedAppInfo(for: pid)
         let baseFacts = WindowRuleFacts(
@@ -1894,6 +1897,41 @@ final class WMController {
             decision: decision,
             appFullscreen: fullscreen,
             manualOverride: manualOverride
+        )
+    }
+
+    private static func ownedWindowDispositionEvaluation(token: WindowToken) -> WindowDecisionEvaluation {
+        WindowDecisionEvaluation(
+            token: token,
+            facts: WindowRuleFacts(
+                appName: nil,
+                ax: AXWindowFacts(
+                    role: nil,
+                    subrole: nil,
+                    title: nil,
+                    hasCloseButton: false,
+                    hasFullscreenButton: false,
+                    fullscreenButtonEnabled: nil,
+                    hasZoomButton: false,
+                    hasMinimizeButton: false,
+                    appPolicy: nil,
+                    bundleId: nil,
+                    attributeFetchSucceeded: true
+                ),
+                sizeConstraints: nil,
+                windowServer: nil
+            ),
+            decision: WindowDecision(
+                disposition: .unmanaged,
+                source: .builtInRule(WindowRuleEngine.ownedWindowRuleName),
+                layoutDecisionKind: .explicitLayout,
+                workspaceName: nil,
+                ruleEffects: .none,
+                heuristicReasons: [],
+                deferredReason: nil
+            ),
+            appFullscreen: false,
+            manualOverride: nil
         )
     }
 

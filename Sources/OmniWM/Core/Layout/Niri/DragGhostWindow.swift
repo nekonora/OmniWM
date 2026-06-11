@@ -31,6 +31,17 @@ final class DragGhostWindow: NSPanel {
         alphaValue = 0.5
 
         contentView = imageView
+
+        SurfaceCoordinator.shared.register(
+            window: self,
+            id: "drag-ghost-\(ObjectIdentifier(self).hashValue)",
+            policy: SurfacePolicy(
+                kind: .dragGhost,
+                hitTestPolicy: .passthrough,
+                capturePolicy: .excluded,
+                suppressesManagedFocusRecovery: false
+            )
+        )
     }
 
     override var canBecomeKey: Bool {
