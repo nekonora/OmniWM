@@ -407,8 +407,6 @@ final class AXEventHandler {
     private var nextPostCreateLifecycleVerificationOwner: UInt64 = 1
     private var pendingCreatedWindowRetryTasks: [UInt32: Task<Void, Never>] = [:]
     private var createdWindowRetryCountById: [UInt32: Int] = [:]
-    private var pendingActivationRetryTask: Task<Void, Never>?
-    private var pendingActivationRetryRequestId: UInt64?
     private var windowCloseFocusRecoveryContext: WindowCloseFocusRecoveryContext?
     private var pendingSameAppCloseProbe: SameAppCloseProbe?
     private var recentMouseFocusIntent: RecentMouseFocusIntent?
@@ -440,7 +438,6 @@ final class AXEventHandler {
         resetWindowStabilizationState()
         resetPostCreateLifecycleVerificationState()
         resetCreatedWindowRetryState()
-        resetActivationRetryState()
         pendingFocusedAdmissionReadmitTask?.cancel()
         pendingFocusedAdmissionReadmitTask = nil
         focusedAdmissionReadmitExhaustedToken = nil
@@ -1799,7 +1796,6 @@ final class AXEventHandler {
         if pid == getpid(), (controller.hasFrontmostOwnedWindow || controller.hasVisibleOwnedWindow) {
             if let activeRequest = controller.focusBridge.activeManagedRequest, activeRequest.token.pid == pid {
                 _ = controller.focusBridge.cancelManagedRequest(requestId: activeRequest.requestId)
-                cancelActivationRetry(requestId: activeRequest.requestId)
                 _ = controller.workspaceManager.cancelManagedFocusRequest(
                     matching: activeRequest.token,
                     workspaceId: activeRequest.workspaceId,
@@ -1820,7 +1816,26 @@ final class AXEventHandler {
 
     func handleIntentExpired(_ intentId: IntentID) {
         guard let controller else { return }
-        _ = controller.intentLedger.markExpired(id: intentId)
+        guard let intent = controller.intentLedger.openIntent(id: intentId) else { return }
+
+        switch intent.kind {
+        case .activateApp:
+            _ = controller.intentLedger.markExpired(id: intentId)
+
+        case .focusWindow:
+            guard let requestId = intent.correlatedRequestId,
+                  let liveRequest = controller.focusBridge.activeManagedRequest(requestId: requestId)
+            else {
+                _ = controller.intentLedger.markExpired(id: intentId)
+                return
+            }
+            controller.retryManagedFocusFronting(liveRequest)
+            handleAppActivation(
+                pid: liveRequest.token.pid,
+                source: liveRequest.lastActivationSource ?? .focusedWindowChanged,
+                origin: .retry
+            )
+        }
     }
 
     func handleActivationFactsResolved(_ facts: ActivationFacts) {
@@ -2318,7 +2333,6 @@ final class AXEventHandler {
                )
             {
                 _ = controller.focusBridge.cancelManagedRequest(requestId: request.requestId)
-                cancelActivationRetry(requestId: request.requestId)
                 _ = controller.workspaceManager.cancelManagedFocusRequest(
                     matching: request.token,
                     workspaceId: request.workspaceId,
@@ -2362,9 +2376,6 @@ final class AXEventHandler {
                 }
             }
 
-            if let confirmedRequestId {
-                cancelActivationRetry(requestId: confirmedRequestId)
-            }
             recordNiriCreateFocusTrace(
                 .init(
                     kind: .focusConfirmed(
@@ -2817,7 +2828,6 @@ final class AXEventHandler {
            activeRequest.token.pid == pid
         {
             _ = controller.focusBridge.cancelManagedRequest(requestId: activeRequest.requestId)
-            cancelActivationRetry(requestId: activeRequest.requestId)
             _ = controller.workspaceManager.cancelManagedFocusRequest(
                 matching: activeRequest.token,
                 workspaceId: activeRequest.workspaceId,
@@ -4125,7 +4135,6 @@ final class AXEventHandler {
             break
         }
 
-        cancelActivationRetry()
         let fallbackFullscreen = appFullscreenForFallbackLifecyclePreservation(
             observedAppFullscreen: false
         )
@@ -4237,9 +4246,6 @@ final class AXEventHandler {
                 workspaceId: workspaceId
             )
         }
-        if let canceledRequest {
-            cancelActivationRetry(requestId: canceledRequest.requestId)
-        }
         controller.clearKeyboardFocusTarget(
             matching: token,
             restoreCurrentBorder: false
@@ -4252,12 +4258,23 @@ final class AXEventHandler {
         origin: ActivationCallOrigin,
         reason: ActivationRetryReason
     ) {
-        if scheduleActivationRetryIfNeeded(
-            request: request,
+        guard let controller else { return }
+        if let updatedRequest = controller.focusBridge.recordRetry(
+            requestId: request.requestId,
             source: source,
-            origin: origin,
-            reason: reason
+            retryLimit: Self.activationRetryLimit
         ) {
+            recordNiriCreateFocusTrace(
+                .init(
+                    kind: .activationDeferred(
+                        requestId: updatedRequest.requestId,
+                        token: updatedRequest.token,
+                        source: source,
+                        reason: reason,
+                        attempt: updatedRequest.retryCount
+                    )
+                )
+            )
             return
         }
         guard origin != .probe else {
@@ -4270,62 +4287,6 @@ final class AXEventHandler {
         )
     }
 
-    private func scheduleActivationRetryIfNeeded(
-        request: ManagedFocusRequest,
-        source: ActivationEventSource,
-        origin: ActivationCallOrigin,
-        reason: ActivationRetryReason
-    ) -> Bool {
-        guard let controller,
-              let updatedRequest = controller.focusBridge.recordRetry(
-                  requestId: request.requestId,
-                  source: source,
-                  retryLimit: Self.activationRetryLimit
-              )
-        else {
-            return false
-        }
-
-        cancelActivationRetry()
-        pendingActivationRetryRequestId = updatedRequest.requestId
-        recordNiriCreateFocusTrace(
-            .init(
-                kind: .activationDeferred(
-                    requestId: updatedRequest.requestId,
-                    token: updatedRequest.token,
-                    source: source,
-                    reason: reason,
-                    attempt: updatedRequest.retryCount
-                )
-            )
-        )
-        let retryOrigin: ActivationCallOrigin = origin == .probe ? .probe : .retry
-        pendingActivationRetryTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(for: Self.stabilizationRetryDelay)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled, let self else { return }
-            let requestId = updatedRequest.requestId
-            guard self.pendingActivationRetryRequestId == requestId else { return }
-            self.pendingActivationRetryTask = nil
-            self.pendingActivationRetryRequestId = nil
-            guard let controller = self.controller,
-                  let liveRequest = controller.focusBridge.activeManagedRequest(requestId: requestId)
-            else {
-                return
-            }
-            controller.retryManagedFocusFronting(liveRequest)
-            self.handleAppActivation(
-                pid: liveRequest.token.pid,
-                source: source,
-                origin: retryOrigin
-            )
-        }
-        return true
-    }
-
     private func handleActivationRetryExhausted(
         request: ManagedFocusRequest,
         source: ActivationEventSource,
@@ -4333,7 +4294,6 @@ final class AXEventHandler {
     ) {
         guard let controller else { return }
 
-        cancelActivationRetry(requestId: request.requestId)
         _ = controller.focusBridge.cancelManagedRequest(requestId: request.requestId)
         _ = controller.workspaceManager.cancelManagedFocusRequest(
             matching: request.token,
@@ -4366,21 +4326,6 @@ final class AXEventHandler {
             )
             controller.focusBorderController.hide()
         }
-    }
-
-    private func cancelActivationRetry() {
-        pendingActivationRetryTask?.cancel()
-        pendingActivationRetryTask = nil
-        pendingActivationRetryRequestId = nil
-    }
-
-    private func cancelActivationRetry(requestId: UInt64) {
-        guard pendingActivationRetryRequestId == requestId else { return }
-        cancelActivationRetry()
-    }
-
-    private func resetActivationRetryState() {
-        cancelActivationRetry()
     }
 
     private func deferCreatedWindow(_ windowId: UInt32) {
