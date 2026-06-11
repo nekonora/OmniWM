@@ -12,6 +12,9 @@ final class EventInterpreter: EventIntakeSink {
         guard let controller else { return }
 
         switch stamped.event {
+        case let .activationFactsResolved(facts):
+            controller.axEventHandler.handleActivationFactsResolved(facts)
+
         case .activeSpaceChanged:
             controller.serviceLifecycleManager.handleActiveSpaceDidChange()
 

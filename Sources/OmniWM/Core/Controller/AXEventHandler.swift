@@ -1796,10 +1796,8 @@ final class AXEventHandler {
             )
         }
 
-        let activeRequest = controller.focusBridge.activeManagedRequest
-
         if pid == getpid(), (controller.hasFrontmostOwnedWindow || controller.hasVisibleOwnedWindow) {
-            if let activeRequest, activeRequest.token.pid == pid {
+            if let activeRequest = controller.focusBridge.activeManagedRequest, activeRequest.token.pid == pid {
                 _ = controller.focusBridge.cancelManagedRequest(requestId: activeRequest.requestId)
                 cancelActivationRetry(requestId: activeRequest.requestId)
                 _ = controller.workspaceManager.cancelManagedFocusRequest(
@@ -1817,7 +1815,17 @@ final class AXEventHandler {
             return
         }
 
-        let axRef = resolveFocusedAXWindowRef(pid: pid)
+        controller.factResolver.resolveActivationFacts(pid: pid, source: source, origin: origin)
+    }
+
+    func handleActivationFactsResolved(_ facts: ActivationFacts) {
+        guard let controller, controller.hasStartedServices else { return }
+
+        let pid = facts.pid
+        let source = facts.source
+        let origin = facts.origin
+        let activeRequest = controller.focusBridge.activeManagedRequest
+        let axRef = facts.focusedWindow?.axRef
         let observedToken = axRef.map { WindowToken(pid: pid, windowId: $0.windowId) }
         let requestDisposition = activationRequestDisposition(
             for: pid,
@@ -1825,7 +1833,7 @@ final class AXEventHandler {
             activeRequest: activeRequest
         )
 
-        guard let axRef else {
+        guard let axRef, let focusedWindow = facts.focusedWindow else {
             handleMissingFocusedWindow(
                 pid: pid,
                 source: source,
@@ -1836,7 +1844,7 @@ final class AXEventHandler {
         }
         let token = WindowToken(pid: pid, windowId: axRef.windowId)
 
-        let appFullscreen = AXWindowService.isFullscreen(axRef)
+        let appFullscreen = focusedWindow.isFullscreen
 
         if let entry = controller.workspaceManager.entry(for: token) {
             if appFullscreen {

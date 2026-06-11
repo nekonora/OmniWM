@@ -320,6 +320,7 @@ final class ServiceLifecycleManager {
         controller.hasStartedServices = false
 
         controller.eventIntake.close()
+        controller.factResolver.stop()
         controller.axManager.onAppLaunched = nil
         controller.axManager.onAppTerminated = nil
         controller.axManager.onTerminalFrameRefusal = nil

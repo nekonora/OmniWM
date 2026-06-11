@@ -97,6 +97,7 @@ final class AppAXContext {
     private let axApp: ThreadGuardedValue<AXUIElement>
     private let windows: ThreadGuardedValue<[Int: AXUIElement]>
     private nonisolated(unsafe) var thread: Thread?
+    nonisolated var axThread: Thread? { thread }
     private var activeFrameBatchJobs: [UUID: RunLoopJob] = [:]
     private let frameWriteGenerations = LockedWindowGenerationMap()
     let suppressedFrameWindowIds = LockedWindowIdSet()
