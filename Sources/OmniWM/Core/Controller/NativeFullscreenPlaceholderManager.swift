@@ -1,6 +1,6 @@
 import AppKit
 
-struct NativeFullscreenPlaceholderUpdate {
+struct NativeFullscreenPlaceholderUpdate: Equatable {
     let token: WindowToken
     let workspaceId: WorkspaceDescriptor.ID
     let frame: CGRect
@@ -22,11 +22,9 @@ final class NativeFullscreenPlaceholderManager {
 
     private var windowsByToken: [WindowToken: NativeFullscreenPlaceholderWindow] = [:]
 
-    func update(placeholders: [NativeFullscreenPlaceholderUpdate], in workspaceId: WorkspaceDescriptor.ID) {
+    func apply(_ placeholders: [NativeFullscreenPlaceholderUpdate]) {
         let desiredTokens = Set(placeholders.map(\.token))
-        let staleWindowTokens = windowsByToken.compactMap { token, window in
-            window.workspaceId == workspaceId && !desiredTokens.contains(token) ? token : nil
-        }
+        let staleWindowTokens = windowsByToken.keys.filter { !desiredTokens.contains($0) }
         for token in staleWindowTokens {
             windowsByToken.removeValue(forKey: token)?.destroy()
         }
@@ -41,19 +39,6 @@ final class NativeFullscreenPlaceholderManager {
                 return window
             }()
             window.update(placeholder)
-        }
-    }
-
-    func remove(_ token: WindowToken) {
-        guard let window = windowsByToken.removeValue(forKey: token) else { return }
-        window.destroy()
-    }
-
-    func rekey(from oldToken: WindowToken, to newToken: WindowToken) {
-        guard oldToken != newToken else { return }
-        if let window = windowsByToken.removeValue(forKey: oldToken) {
-            window.rekey(to: newToken)
-            windowsByToken[newToken] = window
         }
     }
 
@@ -143,15 +128,6 @@ private final class NativeFullscreenPlaceholderWindow: NSPanel {
             }
         } else {
             orderOut(nil)
-        }
-    }
-
-    func rekey(to newToken: WindowToken) {
-        unregisterSurface()
-        token = newToken
-        surfaceId = Self.surfaceId(for: newToken)
-        if isVisible {
-            registerSurfaceIfNeeded()
         }
     }
 

@@ -1358,7 +1358,6 @@ final class AXEventHandler {
         cancelSameAppCloseProbe(matchingFocusedToken: token, reason: "focused_token_removed")
 
         clearManagedFocusState(matching: token, workspaceId: affectedWorkspaceId)
-        controller.nativeFullscreenPlaceholderManager.remove(token)
 
         let layoutType = affectedWorkspaceId
             .flatMap { controller.workspaceManager.descriptor(for: $0)?.name }
@@ -2467,7 +2466,6 @@ final class AXEventHandler {
         let restored = controller.workspaceManager.restoreNativeFullscreenRecord(for: entry.token) != nil || hadRecord
         if restored {
             controller.layoutRefreshController.markNativeFullscreenRestoredForFrameApply(entry.token)
-            controller.nativeFullscreenPlaceholderManager.remove(entry.token)
         }
         return restored
     }
@@ -2518,7 +2516,6 @@ final class AXEventHandler {
             } else {
                 _ = controller.workspaceManager.restoreNativeFullscreenRecord(for: token)
                 controller.layoutRefreshController.markNativeFullscreenRestoredForFrameApply(token)
-                controller.nativeFullscreenPlaceholderManager.remove(token)
                 scheduledRelayout = false
             }
             return .restored(scheduledRelayout: scheduledRelayout)
@@ -2541,7 +2538,6 @@ final class AXEventHandler {
         } else {
             _ = controller.workspaceManager.restoreNativeFullscreenRecord(for: token)
             controller.layoutRefreshController.markNativeFullscreenRestoredForFrameApply(token)
-            controller.nativeFullscreenPlaceholderManager.remove(token)
             scheduledRelayout = false
         }
 
@@ -2685,8 +2681,6 @@ final class AXEventHandler {
         if let workspaceId = controller.workspaceManager.workspace(for: newToken) {
             _ = controller.dwindleEngine?.rekeyWindow(from: oldToken, to: newToken, in: workspaceId)
         }
-        controller.nativeFullscreenPlaceholderManager.rekey(from: oldToken, to: newToken)
-
         controller.intentLedger.rekeyManagedRequest(from: oldToken, to: newToken)
         controller.axManager.rekeyWindowState(
             pid: newToken.pid,
@@ -2732,7 +2726,6 @@ final class AXEventHandler {
         }
 
         guard let unavailableRecord else { return false }
-        controller.nativeFullscreenPlaceholderManager.remove(token)
         clearManagedFocusState(matching: token, workspaceId: unavailableRecord.workspaceId)
         controller.layoutRefreshController.requestImmediateRelayout(
             reason: .appActivationTransition,
@@ -3706,13 +3699,12 @@ final class AXEventHandler {
             else {
                 return
             }
-            guard let removedEntry = controller.workspaceManager
+            guard controller.workspaceManager
                 .expireStaleTemporarilyUnavailableNativeFullscreenRecord(
                     originalToken: originalToken,
                     transitionId: transitionId
-                )
+                ) != nil
             else { return }
-            controller.nativeFullscreenPlaceholderManager.remove(removedEntry.token)
             controller.layoutRefreshController.requestFullRescan(reason: .activeSpaceChanged)
         }
     }

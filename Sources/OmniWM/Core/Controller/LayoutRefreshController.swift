@@ -695,9 +695,7 @@ import QuartzCore
                     constraints: mergedConstraints,
                     layoutConstraints: layoutConstraints,
                     hiddenState: hiddenState,
-                    layoutReason: layoutReason,
-                    showsNativeFullscreenPlaceholder: controller.workspaceManager
-                        .showsNativeFullscreenPlaceholder(for: entry.token)
+                    layoutReason: layoutReason
                 )
             )
         }
@@ -1565,7 +1563,6 @@ import QuartzCore
         }
 
         for token in decisionBasedRemovals {
-            controller.nativeFullscreenPlaceholderManager.remove(token)
             controller.cleanupScratchpadWindowResourcesIfNeeded(for: token)
             controller.axManager.removeWindowState(pid: token.pid, windowId: token.windowId)
             _ = controller.workspaceManager.removeWindow(pid: token.pid, windowId: token.windowId)
@@ -1607,7 +1604,6 @@ import QuartzCore
         let scratchpadTokenBeforeRemove = controller.workspaceManager.scratchpadToken()
         let removedEntries = controller.workspaceManager.removeMissing(keys: seenKeys, requiredConsecutiveMisses: 2)
         for entry in removedEntries {
-            controller.nativeFullscreenPlaceholderManager.remove(entry.token)
             controller.axManager.removeWindowState(pid: entry.pid, windowId: entry.windowId)
             controller.workspaceManager.clearNonManagedFocusTarget(matching: entry.token)
         }
@@ -2340,9 +2336,6 @@ import QuartzCore
 
         let preferredSides = preferredHideSides(for: controller.workspaceManager.monitors)
         for snapshot in workspaceEntries where !activeWorkspaceIds.contains(snapshot.workspace.id) {
-            for entry in snapshot.entries {
-                controller.nativeFullscreenPlaceholderManager.remove(entry.token)
-            }
             guard let monitor = controller.workspaceManager.monitor(for: snapshot.workspace.id) else { continue }
             let preferredSide = preferredSides[monitor.id] ?? .right
             hideWorkspace(
@@ -3405,30 +3398,6 @@ final class LayoutDiffExecutor {
             resolvedEntries[token] = entry
             return entry
         }
-
-        let placeholderUpdates = diff.nativeFullscreenPlaceholders
-            .compactMap { change -> NativeFullscreenPlaceholderUpdate? in
-                guard let entry = resolveEntry(for: change.token),
-                      entry.workspaceId == plan.workspaceId,
-                      entry.layoutReason == .nativeFullscreen,
-                      controller.workspaceManager.showsNativeFullscreenPlaceholder(for: change.token)
-                else {
-                    return nil
-                }
-                let appInfo = controller.appInfoCache.info(for: entry.pid)
-                return NativeFullscreenPlaceholderUpdate(
-                    token: change.token,
-                    workspaceId: plan.workspaceId,
-                    frame: change.frame,
-                    selected: change.selected,
-                    appName: appInfo?.name,
-                    icon: appInfo?.icon
-                )
-            }
-        controller.nativeFullscreenPlaceholderManager.update(
-            placeholders: placeholderUpdates,
-            in: plan.workspaceId
-        )
 
         for change in diff.visibilityChanges {
             switch change {

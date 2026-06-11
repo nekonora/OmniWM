@@ -2179,7 +2179,6 @@ final class WMController {
                 if let existingEntry {
                     affectedWorkspaceIds.insert(existingEntry.workspaceId)
                     cleanupScratchpadWindowResourcesIfNeeded(for: token)
-                    nativeFullscreenPlaceholderManager.remove(token)
                     _ = workspaceManager.removeWindow(pid: token.pid, windowId: token.windowId)
                     relayoutNeeded = true
                 } else if evaluation.decision.disposition != .undecided {
@@ -2416,7 +2415,6 @@ final class WMController {
             existingEntry: entry
         ) else {
             cleanupScratchpadWindowResourcesIfNeeded(for: token)
-            nativeFullscreenPlaceholderManager.remove(token)
             _ = workspaceManager.removeWindow(pid: token.pid, windowId: token.windowId)
             layoutRefreshController.requestRelayout(
                 reason: .windowRuleReevaluation,

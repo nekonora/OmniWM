@@ -10,6 +10,7 @@ struct DesiredBorderSurface: Equatable {
 struct DesiredSurfaceScene: Equatable {
     var border: DesiredBorderSurface?
     var tabRails: [TabbedColumnOverlayInfo] = []
+    var placeholders: [NativeFullscreenPlaceholderUpdate] = []
 
     static let empty = DesiredSurfaceScene()
 }
@@ -20,7 +21,8 @@ enum SurfaceDerivation {
         guard world.hasStartedServices else { return .empty }
         return DesiredSurfaceScene(
             border: deriveBorder(world: world),
-            tabRails: world.tabRailInfos()
+            tabRails: world.tabRailInfos(),
+            placeholders: world.nativeFullscreenPlaceholders()
         )
     }
 
@@ -112,6 +114,9 @@ final class SurfaceReconciler {
         borderApplier.apply(desired.border, forceOrdering: forceOrdering)
         if desired.tabRails != appliedScene.tabRails || forceOrdering {
             controller.tabbedOverlayManager.updateOverlays(desired.tabRails, forceOrdering: forceOrdering)
+        }
+        if desired.placeholders != appliedScene.placeholders {
+            controller.nativeFullscreenPlaceholderManager.apply(desired.placeholders)
         }
         appliedScene = desired
     }

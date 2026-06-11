@@ -7,7 +7,6 @@ struct LayoutWindowSnapshot {
     let layoutConstraints: WindowSizeConstraints
     let hiddenState: WindowModel.HiddenState?
     let layoutReason: LayoutReason
-    let showsNativeFullscreenPlaceholder: Bool
 
     var isNativeFullscreenSuspended: Bool {
         layoutReason == .nativeFullscreen
@@ -44,8 +43,6 @@ struct NiriWorkspaceSnapshot {
     let runtimeRevision: RuntimeRevision
     let viewportState: ViewportState
     let preferredFocusToken: WindowToken?
-    let confirmedFocusedToken: WindowToken?
-    let pendingFocusedToken: WindowToken?
     let hasCompletedInitialRefresh: Bool
     let useScrollAnimationPath: Bool
     let removalSeed: NiriWindowRemovalSeed?
@@ -61,8 +58,6 @@ struct DwindleWorkspaceSnapshot {
     let windows: [LayoutWindowSnapshot]
     let runtimeRevision: RuntimeRevision
     let preferredFocusToken: WindowToken?
-    let confirmedFocusedToken: WindowToken?
-    let selectedToken: WindowToken?
     let settings: ResolvedDwindleSettings
     let isActiveWorkspace: Bool
 }
@@ -83,19 +78,12 @@ enum LayoutVisibilityChange {
     case hide(WindowToken, side: HideSide)
 }
 
-struct NativeFullscreenPlaceholderChange {
-    let token: WindowToken
-    let frame: CGRect
-    let selected: Bool
-}
-
 // `frameChanges` imply active, restore-eligible windows for this pass.
 // `visibilityChanges` are reserved for explicit hide/show transitions.
 struct WorkspaceLayoutDiff {
     var frameChanges: [LayoutFrameChange] = []
     var visibilityChanges: [LayoutVisibilityChange] = []
     var restoreChanges: [LayoutRestoreChange] = []
-    var nativeFullscreenPlaceholders: [NativeFullscreenPlaceholderChange] = []
 }
 
 struct WorkspaceSessionPatch {

@@ -318,23 +318,12 @@ import QuartzCore
         ) else {
             return nil
         }
-        let selectedToken: WindowToken?
-        if let selected = controller.dwindleEngine?.selectedNode(in: wsId),
-           case let .leaf(handle, _) = selected.kind
-        {
-            selectedToken = handle
-        } else {
-            selectedToken = nil
-        }
-
         return DwindleWorkspaceSnapshot(
             workspaceId: wsId,
             monitor: refreshInput.monitor,
             windows: refreshInput.windows,
             runtimeRevision: refreshInput.runtimeRevision,
             preferredFocusToken: controller.workspaceManager.preferredFocusToken(in: wsId),
-            confirmedFocusedToken: controller.workspaceManager.focusedToken,
-            selectedToken: selectedToken,
             settings: controller.settings.resolvedDwindleSettings(for: monitor),
             isActiveWorkspace: refreshInput.isActiveWorkspace
         )
@@ -394,8 +383,6 @@ import QuartzCore
         let diff = layoutDiff(
             windows: snapshot.windows,
             frames: diffFrames,
-            selectedToken: rememberedFocusToken,
-            confirmedFocusedToken: snapshot.confirmedFocusedToken,
             canRestoreHiddenWorkspaceWindows: snapshot.isActiveWorkspace,
             scale: snapshot.monitor.scale
         )
@@ -430,8 +417,6 @@ import QuartzCore
         let diff = layoutDiff(
             windows: snapshot.windows,
             frames: frames,
-            selectedToken: snapshot.selectedToken,
-            confirmedFocusedToken: snapshot.confirmedFocusedToken,
             canRestoreHiddenWorkspaceWindows: snapshot.isActiveWorkspace,
             scale: snapshot.monitor.scale
         )
@@ -467,8 +452,6 @@ import QuartzCore
         let diff = layoutDiff(
             windows: snapshot.windows,
             frames: animatedFrames,
-            selectedToken: snapshot.selectedToken,
-            confirmedFocusedToken: snapshot.confirmedFocusedToken,
             canRestoreHiddenWorkspaceWindows: snapshot.isActiveWorkspace,
             scale: snapshot.monitor.scale
         )
@@ -489,32 +472,13 @@ import QuartzCore
     private func layoutDiff(
         windows: [LayoutWindowSnapshot],
         frames: [WindowToken: CGRect],
-        selectedToken: WindowToken?,
-        confirmedFocusedToken: WindowToken?,
         canRestoreHiddenWorkspaceWindows: Bool,
         scale: CGFloat
     ) -> WorkspaceLayoutDiff {
         var diff = WorkspaceLayoutDiff()
         let effectiveScale = max(scale, 1.0)
-        let suspendedTokens = Set(
-            windows.lazy
-                .filter(\.isNativeFullscreenSuspended)
-                .map(\.token)
-        )
         for window in windows {
             if window.isNativeFullscreenSuspended {
-                if canRestoreHiddenWorkspaceWindows,
-                   window.showsNativeFullscreenPlaceholder,
-                   let frame = frames[window.token]?.roundedToPhysicalPixels(scale: effectiveScale)
-                {
-                    diff.nativeFullscreenPlaceholders.append(
-                        .init(
-                            token: window.token,
-                            frame: frame,
-                            selected: selectedToken == window.token || confirmedFocusedToken == window.token
-                        )
-                    )
-                }
                 continue
             }
             if canRestoreHiddenWorkspaceWindows,

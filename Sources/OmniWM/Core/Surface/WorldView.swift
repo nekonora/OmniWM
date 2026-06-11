@@ -68,6 +68,45 @@ struct WorldView {
         controller.niriLayoutHandler.desiredTabRailInfos()
     }
 
+    func nativeFullscreenPlaceholders() -> [NativeFullscreenPlaceholderUpdate] {
+        let workspaceManager = controller.workspaceManager
+        var updates: [NativeFullscreenPlaceholderUpdate] = []
+        for monitor in workspaceManager.monitors {
+            guard let workspace = workspaceManager.activeWorkspaceOrFirst(on: monitor.id) else { continue }
+            for entry in workspaceManager.entries(in: workspace.id) {
+                guard entry.layoutReason == .nativeFullscreen,
+                      workspaceManager.showsNativeFullscreenPlaceholder(for: entry.token),
+                      !workspaceManager.isHiddenInCorner(entry.windowId),
+                      let frame = placeholderFrame(for: entry.token),
+                      frame.width > 1, frame.height > 1
+                else { continue }
+                let appInfo = controller.appInfoCache.info(for: entry.pid)
+                updates.append(
+                    NativeFullscreenPlaceholderUpdate(
+                        token: entry.token,
+                        workspaceId: workspace.id,
+                        frame: frame,
+                        selected: workspaceManager.focusedToken == entry.token
+                            || workspaceManager.pendingFocusedToken == entry.token,
+                        appName: appInfo?.name,
+                        icon: appInfo?.icon
+                    )
+                )
+            }
+        }
+        return updates
+    }
+
+    private func placeholderFrame(for token: WindowToken) -> CGRect? {
+        if let node = controller.niriEngine?.findNode(for: token) {
+            return node.renderedFrame ?? node.frame
+        }
+        if let node = controller.dwindleEngine?.findNode(for: token) {
+            return node.cachedFrame
+        }
+        return nil
+    }
+
     func borderFrame(forWindowId windowId: Int) -> CGRect? {
         if let pending = controller.axManager.pendingFrameWrite(for: windowId) {
             return pending
