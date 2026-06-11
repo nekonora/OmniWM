@@ -16,17 +16,23 @@ struct ActivationFacts: Sendable {
 @MainActor
 final class FactResolver {
     private var resolverThread: Thread?
+    private var inFlightActivationPids: Set<pid_t> = []
 
     func resolveActivationFacts(
         pid: pid_t,
         source: ActivationEventSource,
         origin: ActivationCallOrigin
     ) {
+        if !source.isAuthoritative, inFlightActivationPids.contains(pid) {
+            return
+        }
+        inFlightActivationPids.insert(pid)
         let thread = AppAXContext.contexts[pid]?.axThread ?? sharedResolverThread()
         Task { @MainActor in
             let focusedWindow = (try? await thread.runInLoop { _ in
                 Self.readFocusedWindowFact(pid: pid)
             }) ?? nil
+            inFlightActivationPids.remove(pid)
             EventIntake.post(
                 .activationFactsResolved(
                     ActivationFacts(
