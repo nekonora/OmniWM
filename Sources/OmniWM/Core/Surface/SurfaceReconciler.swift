@@ -7,10 +7,17 @@ struct DesiredBorderSurface: Equatable {
     var config: BorderConfig
 }
 
+struct DesiredBarSurface: Equatable {
+    var monitor: Monitor
+    var visible: Bool
+    var snapshot: WorkspaceBarSnapshot
+}
+
 struct DesiredSurfaceScene: Equatable {
     var border: DesiredBorderSurface?
     var tabRails: [TabbedColumnOverlayInfo] = []
     var placeholders: [NativeFullscreenPlaceholderUpdate] = []
+    var bars: [DesiredBarSurface] = []
 
     static let empty = DesiredSurfaceScene()
 }
@@ -87,12 +94,11 @@ final class SurfaceReconciler {
     }
 
     func reconcileNow() {
-        reconcileScheduled = false
-        let forceOrdering = forceOrderingOnNextReconcile
-        forceOrderingOnNextReconcile = false
-        guard let controller else { return }
-        let desired = SurfaceDerivation.derive(world: WorldView(controller: controller))
-        apply(desired, on: controller, forceOrdering: forceOrdering)
+        runReconcile(deriveBars: true)
+    }
+
+    func reconcileAnimationTick() {
+        runReconcile(deriveBars: false)
     }
 
     func cleanup() {
@@ -105,11 +111,29 @@ final class SurfaceReconciler {
         reconcileNow()
     }
 
+    private func runReconcile(deriveBars: Bool) {
+        reconcileScheduled = false
+        let forceOrdering = forceOrderingOnNextReconcile
+        forceOrderingOnNextReconcile = false
+        guard let controller else { return }
+        let world = WorldView(controller: controller)
+        var desired = SurfaceDerivation.derive(world: world)
+        desired.bars = deriveBars ? world.barSurfaces() : appliedScene.bars
+        apply(desired, on: controller, forceOrdering: forceOrdering, applyBars: deriveBars)
+    }
+
     private func apply(
         _ desired: DesiredSurfaceScene,
         on controller: WMController,
-        forceOrdering: Bool
+        forceOrdering: Bool,
+        applyBars: Bool
     ) {
+        if applyBars {
+            controller.workspaceBarManager.apply(desired.bars)
+            if desired.bars != appliedScene.bars {
+                controller.publishWorkspaceDataChanged()
+            }
+        }
         guard desired != appliedScene || forceOrdering else { return }
         borderApplier.apply(desired.border, forceOrdering: forceOrdering)
         if desired.tabRails != appliedScene.tabRails || forceOrdering {

@@ -223,6 +223,7 @@ import QuartzCore
 
     private func handleScreenParametersChanged() {
         detectRefreshRates()
+        controller?.surfaceReconciler.noteWorldChanged()
     }
 
     func cleanupForMonitorDisconnect(displayId: CGDirectDisplayID, migrateAnimations: Bool) {
@@ -262,7 +263,7 @@ import QuartzCore
         niriHandler.tickScrollAnimation(targetTime: displayLink.targetTimestamp, displayId: displayId)
         dwindleHandler.tickDwindleAnimation(targetTime: displayLink.targetTimestamp, displayId: displayId)
         tickClosingAnimations(targetTime: displayLink.targetTimestamp, displayId: displayId)
-        controller?.surfaceReconciler.reconcileNow()
+        controller?.surfaceReconciler.reconcileAnimationTick()
     }
 
     func startScrollAnimation(for workspaceId: WorkspaceDescriptor.ID) {
@@ -619,10 +620,6 @@ import QuartzCore
             where !postLayoutAction.hasWorkspace(in: rejectedWorkspaceIds)
         {
             postLayoutAction.runIfCurrent(using: controller.workspaceManager)
-        }
-
-        if plan.effects.requestWorkspaceBarRefresh {
-            controller.requestWorkspaceBarRefresh()
         }
 
         if plan.effects.markInitialRefreshComplete {
@@ -1165,16 +1162,10 @@ import QuartzCore
         if !refresh.postLayoutActions.isEmpty {
             plan.postLayoutActions.append(contentsOf: refresh.postLayoutActions)
         }
-
-        if refresh.kind != .visibilityRefresh, refresh.needsVisibilityReconciliation {
-            plan.effects.requestWorkspaceBarRefresh = true
-        }
     }
 
     private func buildVisibilityExecutionPlan() -> RefreshExecutionPlan {
-        var effects = RefreshExecutionEffects()
-        effects.requestWorkspaceBarRefresh = true
-        return RefreshExecutionPlan(effects: effects)
+        RefreshExecutionPlan(effects: RefreshExecutionEffects())
     }
 
     private func buildRelayoutExecutionPlan(
@@ -1214,7 +1205,7 @@ import QuartzCore
 
         var effects = RefreshExecutionEffects()
         effects.visibility = .init()
-        effects.requestWorkspaceBarRefresh = true
+
         if recoverFocus,
            !controller.workspaceManager.isAppFullscreenActive,
            !controller.workspaceManager.hasPendingNativeFullscreenTransition,
@@ -1311,7 +1302,7 @@ import QuartzCore
 
         var effects = RefreshExecutionEffects()
         effects.visibility = .init()
-        effects.requestWorkspaceBarRefresh = true
+
         effects.focusValidationWorkspaceIds = focusValidationWorkspaceIds
         effects.focusValidationPreferredTokens = focusValidationPreferredTokens
 
@@ -1642,7 +1633,7 @@ import QuartzCore
 
         var effects = RefreshExecutionEffects()
         effects.visibility = .init()
-        effects.requestWorkspaceBarRefresh = true
+
         if !controller.workspaceManager.isAppFullscreenActive,
            !controller.workspaceManager.hasPendingNativeFullscreenTransition,
            !controller.shouldSuppressManagedFocusRecovery,

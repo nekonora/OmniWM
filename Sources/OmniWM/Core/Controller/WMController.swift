@@ -104,11 +104,7 @@ final class WMController {
     @ObservationIgnored
     private(set) lazy var surfaceReconciler = SurfaceReconciler(controller: self)
     @ObservationIgnored
-    private lazy var workspaceBarManager: WorkspaceBarManager = .init(motionPolicy: motionPolicy)
-    @ObservationIgnored
-    private var workspaceBarRefreshGeneration: UInt64 = 0
-    @ObservationIgnored
-    private var pendingWorkspaceBarRefreshGeneration: UInt64?
+    private(set) lazy var workspaceBarManager: WorkspaceBarManager = .init(motionPolicy: motionPolicy)
     @ObservationIgnored
     private var runtimeFrameJobCancellationSuppressionDepth: Int = 0
     @ObservationIgnored
@@ -340,7 +336,8 @@ final class WMController {
 
     func applyCurrentAppearanceMode() {
         settings.appearanceMode.apply()
-        workspaceBarManager.updateSettings()
+        workspaceBarManager.updateAppearance()
+        surfaceReconciler.noteWorldChanged()
         statusBarController?.rebuildMenu()
     }
 
@@ -392,13 +389,12 @@ final class WMController {
             settings.workspaceBarEnabled = enabled
         }
         pruneHiddenWorkspaceBarMonitorIds()
-        cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.setup(controller: self, settings: settings)
         layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
+        surfaceReconciler.noteWorldChanged()
     }
 
     func cleanupUIOnStop() {
-        cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.cleanup()
     }
 
@@ -428,9 +424,8 @@ final class WMController {
             hiddenWorkspaceBarMonitorIds.insert(monitor.id)
         }
 
-        cancelPendingWorkspaceBarRefresh()
-        workspaceBarManager.setup(controller: self, settings: settings)
         layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
+        surfaceReconciler.noteWorldChanged()
         return true
     }
 
@@ -452,17 +447,7 @@ final class WMController {
     }
 
     func requestWorkspaceBarRefresh() {
-        guard hasWorkspaceBarRefreshConsumers else { return }
-        guard pendingWorkspaceBarRefreshGeneration == nil else { return }
-
-        let generation = workspaceBarRefreshGeneration
-        pendingWorkspaceBarRefreshGeneration = generation
-
-        Task { @MainActor [weak self] in
-            await Task.yield()
-            await Task.yield()
-            self?.flushRequestedWorkspaceBarRefresh(expectedGeneration: generation)
-        }
+        surfaceReconciler.noteWorldChanged()
     }
 
     func isManagedWindowDisplayable(_ handle: WindowHandle) -> Bool {
@@ -510,9 +495,8 @@ final class WMController {
 
     func updateWorkspaceBarSettings() {
         pruneHiddenWorkspaceBarMonitorIds()
-        cancelPendingWorkspaceBarRefresh()
-        workspaceBarManager.updateSettings()
         layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
+        surfaceReconciler.noteWorldChanged()
     }
 
     func updateWorkspaceBarAppearance() {
@@ -721,31 +705,15 @@ final class WMController {
         statusBarController != nil && settings.statusBarShowWorkspaceName
     }
 
-    private var anyBarRefreshIsEnabled: Bool {
-        workspaceBarRefreshIsEnabled || statusBarRefreshIsEnabled
-    }
-
-    private var hasWorkspaceBarRefreshConsumers: Bool {
-        anyBarRefreshIsEnabled
+    var hasWorkspaceBarDataConsumers: Bool {
+        workspaceBarRefreshIsEnabled
+            || statusBarRefreshIsEnabled
             || ipcApplicationBridge?.hasSubscribers(for: .workspaceBar) == true
             || ipcApplicationBridge?.hasSubscribers(for: .windowsChanged) == true
             || ipcApplicationBridge?.hasSubscribers(for: .layoutChanged) == true
     }
 
-    private func flushRequestedWorkspaceBarRefresh(expectedGeneration: UInt64) {
-        guard pendingWorkspaceBarRefreshGeneration == expectedGeneration,
-              workspaceBarRefreshGeneration == expectedGeneration
-        else {
-            return
-        }
-
-        pendingWorkspaceBarRefreshGeneration = nil
-
-        guard hasWorkspaceBarRefreshConsumers else { return }
-
-        if workspaceBarRefreshIsEnabled {
-            workspaceBarManager.update()
-        }
+    func publishWorkspaceDataChanged() {
         if statusBarRefreshIsEnabled {
             refreshStatusBar()
         }
@@ -756,11 +724,6 @@ final class WMController {
                 await ipcApplicationBridge.publishEvent(.layoutChanged)
             }
         }
-    }
-
-    private func cancelPendingWorkspaceBarRefresh() {
-        pendingWorkspaceBarRefreshGeneration = nil
-        workspaceBarRefreshGeneration &+= 1
     }
 
     func isWorkspaceBarVisible(on monitor: Monitor, resolved: ResolvedBarSettings? = nil) -> Bool {

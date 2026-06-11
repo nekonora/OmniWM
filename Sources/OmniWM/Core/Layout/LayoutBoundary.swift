@@ -110,7 +110,6 @@ struct RefreshVisibilityEffect: Equatable {}
 
 struct RefreshExecutionEffects {
     var visibility: RefreshVisibilityEffect?
-    var requestWorkspaceBarRefresh: Bool = false
     var focusValidationWorkspaceIds: [WorkspaceDescriptor.ID] = []
     var focusValidationPreferredTokens: [WorkspaceDescriptor.ID: WindowToken] = [:]
     var markInitialRefreshComplete: Bool = false

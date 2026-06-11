@@ -87,6 +87,7 @@ final class EventInterpreter: EventIntakeSink {
 
         case .systemWake:
             _ = controller.workspaceManager.recordReconcileEvent(.systemWake(source: .service))
+            controller.workspaceBarManager.cleanup()
             controller.layoutRefreshController.requestFullRescan(reason: .unlock)
         }
     }

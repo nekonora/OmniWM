@@ -68,6 +68,35 @@ struct WorldView {
         controller.niriLayoutHandler.desiredTabRailInfos()
     }
 
+    func barSurfaces() -> [DesiredBarSurface] {
+        guard controller.hasWorkspaceBarDataConsumers else { return [] }
+        let settings = controller.settings
+        var bars: [DesiredBarSurface] = []
+        for monitor in controller.workspaceManager.monitors {
+            let resolved = settings.resolvedBarSettings(for: monitor)
+            let geometry = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true)
+            let projection = controller.workspaceBarProjection(
+                for: monitor,
+                projection: resolved.projectionOptions
+            )
+            bars.append(
+                DesiredBarSurface(
+                    monitor: monitor,
+                    visible: controller.isWorkspaceBarVisible(on: monitor, resolved: resolved),
+                    snapshot: WorkspaceBarSnapshot(
+                        projection: projection,
+                        showLabels: resolved.showLabels,
+                        backgroundOpacity: resolved.backgroundOpacity,
+                        barHeight: geometry.barHeight,
+                        accentColor: resolved.accentColor,
+                        textColor: resolved.textColor
+                    )
+                )
+            )
+        }
+        return bars
+    }
+
     func nativeFullscreenPlaceholders() -> [NativeFullscreenPlaceholderUpdate] {
         let workspaceManager = controller.workspaceManager
         var updates: [NativeFullscreenPlaceholderUpdate] = []
