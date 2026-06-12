@@ -152,7 +152,6 @@ final class WorkspaceManager {
         var monitorSessions: [Monitor.ID: MonitorSession] = [:]
         var workspaceSessions: [WorkspaceDescriptor.ID: WorkspaceSession] = [:]
         var scratchpadToken: WindowToken?
-        var focus = FocusSessionSnapshot()
     }
 
     private struct MonitorResolutionContext {
@@ -253,7 +252,7 @@ final class WorkspaceManager {
 
         return ReconcileSnapshot(
             topologyProfile: currentTopologyProfile(),
-            focusSession: sessionState.focus,
+            focusSession: world.focus,
             windows: windowSnapshots
         )
     }
@@ -301,7 +300,7 @@ final class WorkspaceManager {
 
     @discardableResult
     func recordReconcileEvent(_ event: WMEvent) -> ReconcileTxn {
-        let previousFocus = sessionState.focus
+        let previousFocus = world.focus
         let txn = world.commit(
             event,
             monitors: monitors,
@@ -343,7 +342,7 @@ final class WorkspaceManager {
     }
 
     private func auxiliaryFocusStateChanged(from previous: FocusSessionSnapshot) -> Bool {
-        let current = sessionState.focus
+        let current = world.focus
         return current.lastTiledFocusedByWorkspace != previous.lastTiledFocusedByWorkspace
             || current.lastFloatingFocusedByWorkspace != previous.lastFloatingFocusedByWorkspace
             || current.nonManagedFocusToken != previous.nonManagedFocusToken
@@ -361,19 +360,19 @@ final class WorkspaceManager {
              .windowRekeyed,
              .windowRemoved:
             guard auxiliaryFocusStateChanged(from: previousFocus) else { return }
-            let workspaceId = focusRevisionWorkspaceId(for: sessionState.focus)
+            let workspaceId = focusRevisionWorkspaceId(for: world.focus)
             bumpFocusRevision(previousWorkspaceId: workspaceId, currentWorkspaceId: workspaceId)
         case .nonManagedFocusTargetChanged,
              .suppressedFocusChanged:
             guard plan.focusSession != nil else { return }
-            let workspaceId = focusRevisionWorkspaceId(for: sessionState.focus)
+            let workspaceId = focusRevisionWorkspaceId(for: world.focus)
             bumpFocusRevision(previousWorkspaceId: workspaceId, currentWorkspaceId: workspaceId)
         case .nativeFullscreenPlaceholderSelected,
              .workspaceFocusCleared:
             guard plan.focusSession != nil else { return }
             bumpFocusRevision(
                 previousWorkspaceId: focusRevisionWorkspaceId(for: previousFocus),
-                currentWorkspaceId: focusRevisionWorkspaceId(for: sessionState.focus)
+                currentWorkspaceId: focusRevisionWorkspaceId(for: world.focus)
             )
         default:
             break
@@ -392,8 +391,8 @@ final class WorkspaceManager {
                 newMonitors: normalizedMonitors,
                 visibleWorkspaceMap: activeVisibleWorkspaceMap(),
                 disconnectedVisibleWorkspaceCache: disconnectedVisibleWorkspaceCache,
-                interactionMonitorId: sessionState.focus.interactionMonitorId,
-                previousInteractionMonitorId: sessionState.focus.previousInteractionMonitorId,
+                interactionMonitorId: world.focus.interactionMonitorId,
+                previousInteractionMonitorId: world.focus.previousInteractionMonitorId,
                 workspaceExists: { [weak self] workspaceId in
                     self?.descriptor(for: workspaceId) != nil
                 },
@@ -493,7 +492,7 @@ final class WorkspaceManager {
         }
 
         if let focusSession = plan.focusSession {
-            sessionState.focus = focusSession
+            world.applyFocusSession(focusSession)
         }
 
         if let topologyTransition = plan.topologyTransition {
@@ -502,7 +501,7 @@ final class WorkspaceManager {
         }
 
         guard let token else {
-            if !resolvedPlan.isEmpty {
+            if resolvedPlan.restoreRefresh?.refreshRestoreIntents == true || resolvedPlan.topologyTransition != nil {
                 schedulePersistedWindowRestoreCatalogSave()
             }
             return resolvedPlan
@@ -540,9 +539,9 @@ final class WorkspaceManager {
 
     @discardableResult
     private func applyFocusReconcileEvent(_ event: WMEvent) -> Bool {
-        let previousFocusSession = sessionState.focus
+        let previousFocusSession = world.focus
         recordReconcileEvent(event)
-        return sessionState.focus != previousFocusSession
+        return world.focus != previousFocusSession
     }
 
     private func plannedRestoreRefresh(
@@ -577,14 +576,16 @@ final class WorkspaceManager {
             schedulePersistedWindowRestoreCatalogSave()
         }
 
-        let previousWorkspaceId = sessionState.focus.interactionMonitorId
+        let previousWorkspaceId = world.focus.interactionMonitorId
             .flatMap { currentActiveWorkspace(on: $0)?.id }
         let nextWorkspaceId = plan.interactionMonitorId
             .flatMap { currentActiveWorkspace(on: $0)?.id }
-        let interactionChanged = sessionState.focus.interactionMonitorId != plan.interactionMonitorId
-            || sessionState.focus.previousInteractionMonitorId != plan.previousInteractionMonitorId
-        sessionState.focus.interactionMonitorId = plan.interactionMonitorId
-        sessionState.focus.previousInteractionMonitorId = plan.previousInteractionMonitorId
+        let interactionChanged = world.focus.interactionMonitorId != plan.interactionMonitorId
+            || world.focus.previousInteractionMonitorId != plan.previousInteractionMonitorId
+        world.updateFocus {
+            $0.interactionMonitorId = plan.interactionMonitorId
+            $0.previousInteractionMonitorId = plan.previousInteractionMonitorId
+        }
         if interactionChanged {
             bumpFocusRevision(
                 previousWorkspaceId: previousWorkspaceId,
@@ -611,8 +612,10 @@ final class WorkspaceManager {
 
         reconcileConfiguredVisibleWorkspaces(notify: false)
         disconnectedVisibleWorkspaceCache = transition.disconnectedVisibleWorkspaceCache
-        sessionState.focus.interactionMonitorId = transition.interactionMonitorId
-        sessionState.focus.previousInteractionMonitorId = transition.previousInteractionMonitorId
+        world.updateFocus {
+            $0.interactionMonitorId = transition.interactionMonitorId
+            $0.previousInteractionMonitorId = transition.previousInteractionMonitorId
+        }
         reconcileInteractionMonitorState(notify: false)
         refreshWindowMonitorReferencesForAllEntries()
         if transition.refreshRestoreIntents {
@@ -780,13 +783,15 @@ final class WorkspaceManager {
         guard oldMode != mode else { return false }
 
         world.setMode(mode, for: token)
-        let previousWorkspaceId = focusRevisionWorkspaceId(for: sessionState.focus)
-        guard sessionState.focus.reconcileRememberedFocus(afterModeChangeOf: token, in: workspaceId, to: mode) else {
+        let previousWorkspaceId = focusRevisionWorkspaceId(for: world.focus)
+        guard world.updateFocus({
+            $0.reconcileRememberedFocus(afterModeChangeOf: token, in: workspaceId, to: mode)
+        }) else {
             return false
         }
         bumpFocusRevision(
             previousWorkspaceId: previousWorkspaceId,
-            currentWorkspaceId: focusRevisionWorkspaceId(for: sessionState.focus)
+            currentWorkspaceId: focusRevisionWorkspaceId(for: world.focus)
         )
         return true
     }
@@ -944,15 +949,15 @@ final class WorkspaceManager {
     }
 
     var interactionMonitorId: Monitor.ID? {
-        sessionState.focus.interactionMonitorId
+        world.focus.interactionMonitorId
     }
 
     var previousInteractionMonitorId: Monitor.ID? {
-        sessionState.focus.previousInteractionMonitorId
+        world.focus.previousInteractionMonitorId
     }
 
     var focusedToken: WindowToken? {
-        sessionState.focus.focusedToken
+        world.focus.focusedToken
     }
 
     var focusedHandle: WindowHandle? {
@@ -960,7 +965,7 @@ final class WorkspaceManager {
     }
 
     var pendingFocusedToken: WindowToken? {
-        sessionState.focus.pendingManagedFocus.token
+        world.focus.pendingManagedFocus.token
     }
 
     var pendingFocusedHandle: WindowHandle? {
@@ -968,23 +973,23 @@ final class WorkspaceManager {
     }
 
     var pendingFocusedWorkspaceId: WorkspaceDescriptor.ID? {
-        sessionState.focus.pendingManagedFocus.workspaceId
+        world.focus.pendingManagedFocus.workspaceId
     }
 
     var pendingFocusedMonitorId: Monitor.ID? {
-        sessionState.focus.pendingManagedFocus.monitorId
+        world.focus.pendingManagedFocus.monitorId
     }
 
     var isNonManagedFocusActive: Bool {
-        sessionState.focus.isNonManagedFocusActive
+        world.focus.isNonManagedFocusActive
     }
 
     var isAppFullscreenActive: Bool {
-        sessionState.focus.isAppFullscreenActive
+        world.focus.isAppFullscreenActive
     }
 
     var hasNativeFullscreenLifecycleContext: Bool {
-        sessionState.focus.isAppFullscreenActive || !nativeFullscreenRecordsByOriginalToken.isEmpty
+        world.focus.isAppFullscreenActive || !nativeFullscreenRecordsByOriginalToken.isEmpty
     }
 
     func scratchpadToken() -> WindowToken? {
@@ -1031,7 +1036,7 @@ final class WorkspaceManager {
         if let normalizedMonitorId {
             changed = updateInteractionMonitor(normalizedMonitorId, preservePrevious: true, notify: false) || changed
         }
-        let appFullscreen = sessionState.focus.isNonManagedFocusActive ? false : sessionState.focus
+        let appFullscreen = world.focus.isNonManagedFocusActive ? false : world.focus
             .isAppFullscreenActive
         changed = applyFocusReconcileEvent(
             .managedFocusConfirmed(
@@ -1160,7 +1165,7 @@ final class WorkspaceManager {
                 requestId: requestId
             )
         }
-        let request = sessionState.focus.pendingManagedFocus
+        let request = world.focus.pendingManagedFocus
         guard request != .empty else {
             return true
         }
@@ -1196,7 +1201,7 @@ final class WorkspaceManager {
         matching token: WindowToken? = nil,
         workspaceId: WorkspaceDescriptor.ID? = nil
     ) -> Bool {
-        let request = sessionState.focus.pendingManagedFocus
+        let request = world.focus.pendingManagedFocus
         let matchesToken = token.map { request.token == $0 } ?? true
         let matchesWorkspace = workspaceId.map { request.workspaceId == $0 } ?? true
         guard matchesToken, matchesWorkspace, request != .empty else {
@@ -1563,9 +1568,9 @@ final class WorkspaceManager {
         let mode = windowMode(for: token) ?? .tiling
         let changed = switch mode {
         case .tiling:
-            sessionState.focus.lastTiledFocusedByWorkspace[workspaceId] != token
+            world.focus.lastTiledFocusedByWorkspace[workspaceId] != token
         case .floating:
-            sessionState.focus.lastFloatingFocusedByWorkspace[workspaceId] != token
+            world.focus.lastFloatingFocusedByWorkspace[workspaceId] != token
         }
         guard changed else { return false }
         recordReconcileEvent(
@@ -1679,26 +1684,26 @@ final class WorkspaceManager {
     }
 
     func lastFocusedToken(in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
-        sessionState.focus.lastTiledFocusedByWorkspace[workspaceId]
+        world.focus.lastTiledFocusedByWorkspace[workspaceId]
     }
 
     func lastFloatingFocusedToken(in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
-        sessionState.focus.lastFloatingFocusedByWorkspace[workspaceId]
+        world.focus.lastFloatingFocusedByWorkspace[workspaceId]
     }
 
     func preferredFocusToken(in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
         if let pendingToken = eligibleFocusCandidate(
-            sessionState.focus.pendingManagedFocus.token,
+            world.focus.pendingManagedFocus.token,
             in: workspaceId,
             mode: .tiling
         ),
-            sessionState.focus.pendingManagedFocus.workspaceId == workspaceId
+            world.focus.pendingManagedFocus.workspaceId == workspaceId
         {
             return pendingToken
         }
 
         if let remembered = eligibleFocusCandidate(
-            sessionState.focus.lastTiledFocusedByWorkspace[workspaceId],
+            world.focus.lastTiledFocusedByWorkspace[workspaceId],
             in: workspaceId,
             mode: .tiling
         ) {
@@ -1706,7 +1711,7 @@ final class WorkspaceManager {
         }
 
         if let confirmed = eligibleFocusCandidate(
-            sessionState.focus.focusedToken,
+            world.focus.focusedToken,
             in: workspaceId,
             mode: .tiling
         ) {
@@ -1720,7 +1725,7 @@ final class WorkspaceManager {
 
     func resolveWorkspaceFocusToken(in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
         if let remembered = eligibleFocusCandidate(
-            sessionState.focus.lastTiledFocusedByWorkspace[workspaceId],
+            world.focus.lastTiledFocusedByWorkspace[workspaceId],
             in: workspaceId,
             mode: .tiling
         ) {
@@ -1730,14 +1735,14 @@ final class WorkspaceManager {
             return preferredTiled
         }
         if let rememberedFloating = eligibleFocusCandidate(
-            sessionState.focus.lastFloatingFocusedByWorkspace[workspaceId],
+            world.focus.lastFloatingFocusedByWorkspace[workspaceId],
             in: workspaceId,
             mode: .floating
         ) {
             return rememberedFloating
         }
         if let confirmed = eligibleFocusCandidate(
-            sessionState.focus.focusedToken,
+            world.focus.focusedToken,
             in: workspaceId,
             mode: .floating
         ) {
@@ -1758,7 +1763,7 @@ final class WorkspaceManager {
             return token
         }
 
-        let focus = sessionState.focus
+        let focus = world.focus
         let clearsPending = focus.pendingManagedFocus != .empty
             && focus.pendingManagedFocus.workspaceId == workspaceId
         let clearsFocused = focus.focusedToken.flatMap { entry(for: $0)?.workspaceId } == workspaceId
@@ -1787,7 +1792,7 @@ final class WorkspaceManager {
                 source: .workspaceManager
             )
         )
-        if sessionState.focus.nonManagedFocusToken != target {
+        if world.focus.nonManagedFocusToken != target {
             changed = applyFocusReconcileEvent(
                 .nonManagedFocusTargetChanged(target: target, source: .workspaceManager)
             ) || changed
@@ -1799,22 +1804,22 @@ final class WorkspaceManager {
     }
 
     var nonManagedFocusToken: WindowToken? {
-        sessionState.focus.nonManagedFocusToken
+        world.focus.nonManagedFocusToken
     }
 
     var suppressedFocusToken: WindowToken? {
-        sessionState.focus.suppressedFocusToken
+        world.focus.suppressedFocusToken
     }
 
     var renderableFocusToken: WindowToken? {
-        if sessionState.focus.isNonManagedFocusActive {
-            return sessionState.focus.nonManagedFocusToken
+        if world.focus.isNonManagedFocusActive {
+            return world.focus.nonManagedFocusToken
         }
-        return sessionState.focus.focusedToken
+        return world.focus.focusedToken
     }
 
     func clearNonManagedFocusTarget(matching token: WindowToken? = nil, pid: pid_t? = nil) {
-        guard let current = sessionState.focus.nonManagedFocusToken else { return }
+        guard let current = world.focus.nonManagedFocusToken else { return }
         if let token, current != token { return }
         if let pid, current.pid != pid { return }
         if applyFocusReconcileEvent(.nonManagedFocusTargetChanged(target: nil, source: .workspaceManager)) {
@@ -1823,7 +1828,7 @@ final class WorkspaceManager {
     }
 
     func suppressFocusBorder(for token: WindowToken) {
-        guard sessionState.focus.suppressedFocusToken != token else { return }
+        guard world.focus.suppressedFocusToken != token else { return }
         if applyFocusReconcileEvent(.suppressedFocusChanged(token: token, source: .workspaceManager)) {
             notifySessionStateChanged()
         }
@@ -1854,7 +1859,7 @@ final class WorkspaceManager {
         workspaceId: WorkspaceDescriptor.ID,
         requestId: UInt64
     ) -> Bool {
-        let request = sessionState.focus.pendingManagedFocus
+        let request = world.focus.pendingManagedFocus
         return request.token == token
             && request.workspaceId == workspaceId
             && request.requestId == requestId
@@ -2327,7 +2332,7 @@ final class WorkspaceManager {
             upsertNativeFullscreenRecord(record)
         }
 
-        let previousFocus = sessionState.focus
+        let previousFocus = world.focus
         recordReconcileEvent(
             .windowRekeyed(
                 from: oldToken,
@@ -2539,7 +2544,7 @@ final class WorkspaceManager {
         guard oldMode != mode else { return false }
 
         let workspaceId = entry.workspaceId
-        let previousFocus = sessionState.focus
+        let previousFocus = world.focus
         recordReconcileEvent(
             .windowModeChanged(
                 token: token,
@@ -2707,7 +2712,7 @@ final class WorkspaceManager {
 
     @discardableResult
     private func removeTrackedWindow(_ entry: WindowModel.Entry) -> WindowModel.Entry {
-        let previousFocus = sessionState.focus
+        let previousFocus = world.focus
         recordReconcileEvent(
             .windowRemoved(
                 token: entry.token,
@@ -3272,8 +3277,8 @@ final class WorkspaceManager {
             bumpRuntimeRevision(for: id, domains: [.workspace, .layout, .focus])
         }
         let rememberedIds = toRemove.filter {
-            sessionState.focus.lastTiledFocusedByWorkspace[$0] != nil
-                || sessionState.focus.lastFloatingFocusedByWorkspace[$0] != nil
+            world.focus.lastTiledFocusedByWorkspace[$0] != nil
+                || world.focus.lastFloatingFocusedByWorkspace[$0] != nil
         }
         if !rememberedIds.isEmpty {
             recordReconcileEvent(.focusForgotten(workspaceIds: rememberedIds, source: .workspaceManager))
@@ -3849,13 +3854,13 @@ final class WorkspaceManager {
         preservePrevious: Bool,
         notify: Bool
     ) -> Bool {
-        guard sessionState.focus.interactionMonitorId != monitorId else { return false }
-        let previousWorkspaceId = sessionState.focus.interactionMonitorId
+        guard world.focus.interactionMonitorId != monitorId else { return false }
+        let previousWorkspaceId = world.focus.interactionMonitorId
             .flatMap { currentActiveWorkspace(on: $0)?.id }
         let nextWorkspaceId = monitorId
             .flatMap { currentActiveWorkspace(on: $0)?.id }
-        var previousMonitorId = sessionState.focus.previousInteractionMonitorId
-        if preservePrevious, let currentMonitorId = sessionState.focus.interactionMonitorId {
+        var previousMonitorId = world.focus.previousInteractionMonitorId
+        if preservePrevious, let currentMonitorId = world.focus.interactionMonitorId {
             previousMonitorId = currentMonitorId
         }
         recordReconcileEvent(
@@ -3881,20 +3886,20 @@ final class WorkspaceManager {
 
     private func reconcileInteractionMonitorState(notify: Bool = true) {
         let validMonitorIds = Set(monitors.map(\.id))
-        let focusedWorkspaceMonitorId = sessionState.focus.focusedToken
+        let focusedWorkspaceMonitorId = world.focus.focusedToken
             .flatMap { entry(for: $0)?.workspaceId }
             .flatMap { monitorId(for: $0) }
-        let newInteractionMonitorId = sessionState.focus.interactionMonitorId.flatMap {
+        let newInteractionMonitorId = world.focus.interactionMonitorId.flatMap {
             validMonitorIds.contains($0) ? $0 : nil
         } ?? focusedWorkspaceMonitorId.flatMap {
             validMonitorIds.contains($0) ? $0 : nil
         } ?? monitors.first?.id
-        let newPreviousInteractionMonitorId = sessionState.focus.previousInteractionMonitorId.flatMap {
+        let newPreviousInteractionMonitorId = world.focus.previousInteractionMonitorId.flatMap {
             validMonitorIds.contains($0) ? $0 : nil
         }
 
-        let changed = sessionState.focus.interactionMonitorId != newInteractionMonitorId
-            || sessionState.focus.previousInteractionMonitorId != newPreviousInteractionMonitorId
+        let changed = world.focus.interactionMonitorId != newInteractionMonitorId
+            || world.focus.previousInteractionMonitorId != newPreviousInteractionMonitorId
         guard changed else { return }
 
         recordReconcileEvent(

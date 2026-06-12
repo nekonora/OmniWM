@@ -7,6 +7,7 @@ final class WorldStore {
     private let trace = ReconcileTraceRecorder()
     private let nowProvider: () -> Date
     private(set) var seq: UInt64 = 0
+    private(set) var focus = FocusSessionSnapshot()
     private var commitDepth = 0
 
     init(nowProvider: @escaping () -> Date = Date.init) {
@@ -325,6 +326,17 @@ extension WorldStore {
     func setFloatingState(_ state: WindowModel.FloatingState?, for token: WindowToken) {
         assertInCommit("setFloatingState")
         model.setFloatingState(state, for: token)
+    }
+
+    func applyFocusSession(_ focusSession: FocusSessionSnapshot) {
+        assertInCommit("applyFocusSession")
+        focus = focusSession
+    }
+
+    @discardableResult
+    func updateFocus<T>(_ mutate: (inout FocusSessionSnapshot) -> T) -> T {
+        assertInCommit("updateFocus")
+        return mutate(&focus)
     }
 
     func setCachedConstraints(_ constraints: WindowSizeConstraints, for token: WindowToken) {
