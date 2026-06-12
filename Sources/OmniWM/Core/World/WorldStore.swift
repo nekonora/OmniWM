@@ -154,7 +154,7 @@ final class WorldStore {
             case let .suspended(reason):
                 model.setLayoutReason(reason, for: token)
             case .restored:
-                _ = model.restoreFromNativeState(for: token)
+                model.restoreFromNativeState(for: token)
             }
 
         case let .managedReplacementMetadataChanged(token, _, _, metadata, _):

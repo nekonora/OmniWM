@@ -5,7 +5,3 @@ enum LayoutReason: Codable, Equatable {
     case macosHiddenApp
     case nativeFullscreen
 }
-
-enum ParentKind: Codable, Equatable {
-    case tilingContainer
-}

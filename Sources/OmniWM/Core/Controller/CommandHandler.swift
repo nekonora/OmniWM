@@ -554,7 +554,7 @@ final class CommandHandler {
 
             _ = controller.workspaceManager.requestNativeFullscreenEnter(token, in: entry.workspaceId)
             guard setFullscreen(entry.axRef, true) else {
-                _ = controller.workspaceManager.restoreNativeFullscreenRecord(for: token)
+                controller.workspaceManager.restoreNativeFullscreenRecord(for: token)
                 return
             }
             return

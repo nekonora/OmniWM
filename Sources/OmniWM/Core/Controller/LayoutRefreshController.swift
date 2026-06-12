@@ -1468,7 +1468,7 @@ import QuartzCore
             let ruleEffects: ManagedWindowRuleEffects
             if let existingEntry {
                 if shouldPreservePreFullscreenState {
-                    _ = controller.workspaceManager.restoreNativeFullscreenRecord(for: existingEntry.token)
+                    controller.workspaceManager.restoreNativeFullscreenRecord(for: existingEntry.token)
                     markNativeFullscreenRestoredForFrameApply(existingEntry.token)
                     wsForWindow = existingEntry.workspaceId
                     ruleEffects = existingEntry.ruleEffects

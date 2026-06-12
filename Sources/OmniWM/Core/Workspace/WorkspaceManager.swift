@@ -1540,15 +1540,15 @@ final class WorkspaceManager {
     }
 
     @discardableResult
-    func restoreNativeFullscreenRecord(for token: WindowToken) -> ParentKind? {
+    func restoreNativeFullscreenRecord(for token: WindowToken) -> Bool {
         let record = nativeFullscreenRecord(for: token)
         let resolvedToken = record?.currentToken ?? token
         if let record {
             _ = removeNativeFullscreenRecord(originalToken: record.originalToken)
         }
-        let restoredParentKind = restoreFromNativeState(for: resolvedToken)
+        let restored = restoreFromNativeState(for: resolvedToken)
         _ = setManagedAppFullscreen(false)
-        return restoredParentKind
+        return restored
     }
 
     func nativeFullscreenCommandTarget(frontmostToken: WindowToken?) -> WindowToken? {
@@ -1587,7 +1587,7 @@ final class WorkspaceManager {
             return nil
         }
         if layoutReason(for: removedRecord.currentToken) == .nativeFullscreen {
-            _ = restoreFromNativeState(for: removedRecord.currentToken)
+            restoreFromNativeState(for: removedRecord.currentToken)
         }
         return removeWindow(pid: removedRecord.currentToken.pid, windowId: removedRecord.currentToken.windowId)
     }
@@ -2818,14 +2818,14 @@ final class WorkspaceManager {
         )
     }
 
-    func restoreFromNativeState(for token: WindowToken) -> ParentKind? {
+    @discardableResult
+    func restoreFromNativeState(for token: WindowToken) -> Bool {
         guard let entry = world.entry(for: token),
               entry.layoutReason != .standard,
               let workspaceId = workspace(for: token)
         else {
-            return nil
+            return false
         }
-        let restoredParentKind = entry.prevParentKind
         recordReconcileEvent(
             .nativeFullscreenTransition(
                 token: token,
@@ -2835,7 +2835,7 @@ final class WorkspaceManager {
                 source: .workspaceManager
             )
         )
-        return restoredParentKind
+        return true
     }
 
     func isNativeFullscreenTemporarilyUnavailable(_ token: WindowToken) -> Bool {

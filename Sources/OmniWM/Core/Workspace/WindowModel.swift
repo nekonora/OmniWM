@@ -153,8 +153,6 @@ final class WindowModel {
         var hiddenReason: HiddenReason?
 
         var layoutReason: LayoutReason = .standard
-        var parentKind: ParentKind = .tilingContainer
-        var prevParentKind: ParentKind?
         var cachedConstraints: WindowSizeConstraints?
         var constraintsCacheTime: Date?
         var observedMinSize: CGSize?
@@ -652,24 +650,16 @@ final class WindowModel {
     }
 
     func setLayoutReason(_ reason: LayoutReason, for token: WindowToken) {
-        guard let entry = entries[token] else { return }
-        if reason != .standard, entry.layoutReason == .standard {
-            entry.prevParentKind = entry.parentKind
-        }
-        entry.layoutReason = reason
+        entries[token]?.layoutReason = reason
     }
 
-    func restoreFromNativeState(for token: WindowToken) -> ParentKind? {
+    @discardableResult
+    func restoreFromNativeState(for token: WindowToken) -> Bool {
         guard let entry = entries[token],
               entry.layoutReason != .standard
-        else { return nil }
-        let prevKind = entry.prevParentKind
+        else { return false }
         entry.layoutReason = .standard
-        if let prevKind {
-            entry.parentKind = prevKind
-        }
-        entry.prevParentKind = nil
-        return prevKind
+        return true
     }
 
     func confirmedMissingKeys(keys activeKeys: Set<WindowKey>, requiredConsecutiveMisses: Int = 1) -> [WindowKey] {

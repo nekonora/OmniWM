@@ -2460,7 +2460,7 @@ final class AXEventHandler {
             return false
         }
         cancelNativeFullscreenLifecycleTasks(containing: entry.token)
-        let restored = controller.workspaceManager.restoreNativeFullscreenRecord(for: entry.token) != nil || hadRecord
+        let restored = controller.workspaceManager.restoreNativeFullscreenRecord(for: entry.token) || hadRecord
         if restored {
             controller.layoutRefreshController.markNativeFullscreenRestoredForFrameApply(entry.token)
         }
@@ -2511,7 +2511,7 @@ final class AXEventHandler {
             if appFullscreen {
                 scheduledRelayout = suspendManagedWindowForNativeFullscreen(entry)
             } else {
-                _ = controller.workspaceManager.restoreNativeFullscreenRecord(for: token)
+                controller.workspaceManager.restoreNativeFullscreenRecord(for: token)
                 controller.layoutRefreshController.markNativeFullscreenRestoredForFrameApply(token)
                 scheduledRelayout = false
             }
@@ -2533,7 +2533,7 @@ final class AXEventHandler {
         if appFullscreen {
             scheduledRelayout = suspendManagedWindowForNativeFullscreen(entry)
         } else {
-            _ = controller.workspaceManager.restoreNativeFullscreenRecord(for: token)
+            controller.workspaceManager.restoreNativeFullscreenRecord(for: token)
             controller.layoutRefreshController.markNativeFullscreenRestoredForFrameApply(token)
             scheduledRelayout = false
         }
@@ -2802,7 +2802,7 @@ final class AXEventHandler {
 
         for entry in controller.workspaceManager.entries(forPid: pid) {
             if controller.workspaceManager.layoutReason(for: entry.token) == .macosHiddenApp {
-                _ = controller.workspaceManager.restoreFromNativeState(for: entry.token)
+                controller.workspaceManager.restoreFromNativeState(for: entry.token)
             }
         }
         controller.layoutRefreshController.requestVisibilityRefresh(reason: .appUnhidden)
