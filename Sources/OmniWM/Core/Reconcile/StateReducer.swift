@@ -121,6 +121,9 @@ enum StateReducer {
         case let .scratchpadChanged(token, _):
             plan.notes = ["scratchpad=\(token != nil)"]
 
+        case let .visibleWorkspacesChanged(sessions, _):
+            plan.notes = ["visible_workspaces=\(sessions.count)"]
+
         case let .hiddenStateChanged(_, workspaceId, monitorId, hiddenState, _):
             var observedState = baseObservedState(
                 from: existingEntry,

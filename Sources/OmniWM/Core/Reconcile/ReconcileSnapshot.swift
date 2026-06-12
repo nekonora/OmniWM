@@ -139,6 +139,11 @@ struct PendingManagedFocusSnapshot: Equatable {
     )
 }
 
+struct MonitorSession: Equatable {
+    var visibleWorkspaceId: WorkspaceDescriptor.ID?
+    var previousVisibleWorkspaceId: WorkspaceDescriptor.ID?
+}
+
 struct FocusSessionSnapshot: Equatable {
     var focusedToken: WindowToken? = nil
     var pendingManagedFocus: PendingManagedFocusSnapshot = .empty

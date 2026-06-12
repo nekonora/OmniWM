@@ -130,6 +130,7 @@ enum EventNormalizer {
              .viewportChanged,
              .viewportCommitted,
              .viewportForgotten,
+             .visibleWorkspacesChanged,
              .workspaceFocusCleared:
             return event
         }

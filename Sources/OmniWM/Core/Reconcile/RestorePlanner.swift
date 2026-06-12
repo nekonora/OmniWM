@@ -126,6 +126,7 @@ struct RestorePlanner {
              .viewportChanged,
              .viewportCommitted,
              .viewportForgotten,
+             .visibleWorkspacesChanged,
              .windowAdmitted,
              .windowModeChanged,
              .windowRekeyed,

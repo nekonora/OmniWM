@@ -10,6 +10,7 @@ final class WorldStore {
     private(set) var focus = FocusSessionSnapshot()
     private(set) var viewports: [WorkspaceDescriptor.ID: ViewportState] = [:]
     private(set) var scratchpadToken: WindowToken?
+    private(set) var monitorSessions: [Monitor.ID: MonitorSession] = [:]
     private var commitDepth = 0
 
     init(nowProvider: @escaping () -> Date = Date.init) {
@@ -161,6 +162,10 @@ final class WorldStore {
         case let .scratchpadChanged(token, _):
             guard phase == .beforePlan else { return }
             scratchpadToken = token
+
+        case let .visibleWorkspacesChanged(sessions, _):
+            guard phase == .beforePlan else { return }
+            monitorSessions = sessions
 
         case .activeSpaceChanged,
              .focusForgotten,

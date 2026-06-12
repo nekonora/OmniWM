@@ -198,6 +198,10 @@ enum WMEvent: Equatable {
         token: WindowToken?,
         source: WMEventSource
     )
+    case visibleWorkspacesChanged(
+        sessions: [Monitor.ID: MonitorSession],
+        source: WMEventSource
+    )
     case systemSleep(source: WMEventSource)
     case systemWake(source: WMEventSource)
 
@@ -238,6 +242,7 @@ enum WMEvent: Equatable {
              .viewportChanged,
              .viewportCommitted,
              .viewportForgotten,
+             .visibleWorkspacesChanged,
              .workspaceFocusCleared:
             nil
         }
@@ -276,6 +281,7 @@ enum WMEvent: Equatable {
              let .viewportForgotten(_, source),
              let .selectionChanged(_, _, source),
              let .scratchpadChanged(_, source),
+             let .visibleWorkspacesChanged(_, source),
              let .systemSleep(source),
              let .systemWake(source):
             source
@@ -346,6 +352,8 @@ enum WMEvent: Equatable {
             "selection_changed workspace=\(workspaceId.uuidString) node=\(nodeId)"
         case let .scratchpadChanged(token, _):
             "scratchpad_changed token=\(token.map(String.init(describing:)) ?? "nil")"
+        case let .visibleWorkspacesChanged(sessions, _):
+            "visible_workspaces_changed monitors=\(sessions.count)"
         case .systemSleep:
             "system_sleep"
         case .systemWake:
