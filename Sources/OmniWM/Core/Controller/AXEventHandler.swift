@@ -1129,6 +1129,7 @@ final class AXEventHandler {
             )
         }
 
+        let trackedEntry = controller.workspaceManager.entry(for: trackedToken) ?? trackedEntry
         if let floatingTargetFrame,
            shouldApplyFloatingCreateFrameImmediately(for: trackedEntry.workspaceId)
         {
@@ -1828,6 +1829,7 @@ final class AXEventHandler {
                 return
             }
             _ = restoreManagedWindowFromNativeFullscreen(entry)
+            let entry = controller.workspaceManager.entry(for: token) ?? entry
             let wsId = entry.workspaceId
 
             let targetMonitor = controller.workspaceManager.monitor(for: wsId)
@@ -2272,6 +2274,7 @@ final class AXEventHandler {
         }
 
         _ = restoreManagedWindowFromNativeFullscreen(entry)
+        let entry = controller.workspaceManager.entry(for: entry.token) ?? entry
         let wsId = entry.workspaceId
         let monitorId = controller.workspaceManager.monitorId(for: wsId)
         let shouldActivateWorkspace = !isWorkspaceActive && !controller.isTransferringWindow
@@ -2446,7 +2449,9 @@ final class AXEventHandler {
         if changed {
             controller.layoutRefreshController.requestImmediateRelayout(
                 reason: .appActivationTransition,
-                affectedWorkspaceIds: [entry.workspaceId]
+                affectedWorkspaceIds: [
+                    controller.workspaceManager.workspace(for: entry.token) ?? entry.workspaceId,
+                ]
             )
         }
         return changed
@@ -4128,7 +4133,7 @@ final class AXEventHandler {
         for entry in entries {
             clearManagedFocusState(
                 matching: entry.token,
-                workspaceId: entry.workspaceId
+                workspaceId: controller.workspaceManager.workspace(for: entry.token) ?? entry.workspaceId
             )
         }
 

@@ -8,7 +8,8 @@ typealias OverviewWorkspaceLayoutItem = (
 )
 
 typealias OverviewWindowLayoutData = (
-    entry: WindowModel.Entry,
+    token: WindowToken,
+    workspaceId: WorkspaceDescriptor.ID,
     title: String,
     appName: String,
     appIcon: NSImage?,
@@ -103,8 +104,8 @@ struct OverviewLayoutCalculator {
         windowsByToken.reserveCapacity(windows.count)
 
         for (handle, windowData) in windows {
-            windowsByWorkspace[windowData.entry.workspaceId, default: []].append((handle, windowData))
-            windowsByToken[windowData.entry.token] = (handle, windowData)
+            windowsByWorkspace[windowData.workspaceId, default: []].append((handle, windowData))
+            windowsByToken[windowData.token] = (handle, windowData)
         }
 
         var sections: [OverviewWorkspaceSection] = []
@@ -608,7 +609,7 @@ struct OverviewLayoutCalculator {
 
         return OverviewWindowItem(
             handle: handle,
-            windowId: windowData.entry.windowId,
+            windowId: windowData.token.windowId,
             workspaceId: workspaceId,
             thumbnail: nil,
             title: windowData.title,

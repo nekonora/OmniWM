@@ -1470,8 +1470,9 @@ import QuartzCore
                 if shouldPreservePreFullscreenState {
                     controller.workspaceManager.restoreNativeFullscreenRecord(for: existingEntry.token)
                     markNativeFullscreenRestoredForFrameApply(existingEntry.token)
-                    wsForWindow = existingEntry.workspaceId
-                    ruleEffects = existingEntry.ruleEffects
+                    let restoredEntry = controller.workspaceManager.entry(for: existingEntry.token) ?? existingEntry
+                    wsForWindow = restoredEntry.workspaceId
+                    ruleEffects = restoredEntry.ruleEffects
                 } else if appFullscreen {
                     _ = controller.workspaceManager.markNativeFullscreenSuspended(existingEntry.token)
                     let existingAssignment = controller.workspaceAssignment(pid: pid, windowId: winId)
@@ -1487,6 +1488,9 @@ import QuartzCore
                 wsForWindow = existingAssignment ?? defaultWorkspace
                 ruleEffects = decision.ruleEffects
             }
+            let existingEntry = existingEntry
+                .flatMap { controller.workspaceManager.entry(for: $0.token) }
+                ?? existingEntry
             let oldMode = existingEntry?.mode
             let admittedMode = oldMode ?? trackedMode
             let parentWindowId = if let windowServer = evaluation.facts.windowServer {
@@ -3150,7 +3154,7 @@ import QuartzCore
                 controller.axManager.unsuppressFrameWrites(frameEntry)
                 acceptedPostLayoutAction(
                     onSuccess,
-                    workspaceIds: [entry.workspaceId]
+                    workspaceIds: [controller.workspaceManager.workspace(for: entry.token) ?? entry.workspaceId]
                 )?.runIfCurrent(using: controller.workspaceManager)
                 return true
             } else {
@@ -3168,7 +3172,7 @@ import QuartzCore
             controller.axManager.unsuppressFrameWrites(frameEntry)
             acceptedPostLayoutAction(
                 onSuccess,
-                workspaceIds: [entry.workspaceId]
+                workspaceIds: [controller.workspaceManager.workspace(for: entry.token) ?? entry.workspaceId]
             )?.runIfCurrent(using: controller.workspaceManager)
             return true
         case let .asyncFrame(frame):
@@ -3184,7 +3188,7 @@ import QuartzCore
                 controller.axManager.applyFramesParallel([(entry.pid, entry.windowId, frame)])
                 acceptedPostLayoutAction(
                     onSuccess,
-                    workspaceIds: [entry.workspaceId]
+                    workspaceIds: [controller.workspaceManager.workspace(for: entry.token) ?? entry.workspaceId]
                 )?.runIfCurrent(using: controller.workspaceManager)
                 return true
             }

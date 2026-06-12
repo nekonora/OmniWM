@@ -1322,12 +1322,13 @@ final class WorkspaceManager {
         guard let entry = entry(for: token) else { return false }
 
         var changed = rememberFocus(token, in: entry.workspaceId)
+        let workspaceId = workspace(for: token) ?? entry.workspaceId
         let originalToken = nativeFullscreenOriginalToken(for: token) ?? token
         let existing = nativeFullscreenRecordsByOriginalToken[originalToken]
         var record = existing ?? NativeFullscreenRecord(
             originalToken: originalToken,
             currentToken: token,
-            workspaceId: entry.workspaceId,
+            workspaceId: workspaceId,
             transitionId: 0,
             exitRequestedByCommand: false,
             transition: .suspended,
@@ -1339,8 +1340,8 @@ final class WorkspaceManager {
             record.currentToken = token
             changed = true
         }
-        if record.workspaceId != entry.workspaceId {
-            record.workspaceId = entry.workspaceId
+        if record.workspaceId != workspaceId {
+            record.workspaceId = workspaceId
             changed = true
         }
         if record.exitRequestedByCommand {
@@ -1470,7 +1471,7 @@ final class WorkspaceManager {
         let record = NativeFullscreenRecord(
             originalToken: token,
             currentToken: token,
-            workspaceId: entry.workspaceId,
+            workspaceId: workspace(for: token) ?? entry.workspaceId,
             transitionId: 0,
             exitRequestedByCommand: false,
             transition: .enterRequested,

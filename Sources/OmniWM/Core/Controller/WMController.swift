@@ -1652,7 +1652,7 @@ final class WMController {
         )
         requestWorkspaceBarRefresh()
         recoverFocusAfterScratchpadHide(
-            in: entry.workspaceId,
+            in: workspaceManager.workspace(for: entry.token) ?? entry.workspaceId,
             excluding: entry.token,
             on: monitor.id
         )
@@ -1733,7 +1733,11 @@ final class WMController {
                     referenceMonitor: referenceMonitor,
                     restoreToFloating: true
                 )
-                if applyFloatingFrame ?? shouldApplyFloatingFrameImmediately(for: entry.workspaceId) {
+                if applyFloatingFrame
+                    ?? shouldApplyFloatingFrameImmediately(
+                        for: workspaceManager.workspace(for: token) ?? entry.workspaceId
+                    )
+                {
                     axManager.forceApplyNextFrame(for: entry.windowId)
                     axManager.applyFramesParallel([(entry.pid, entry.windowId, targetFrame)])
                 }
@@ -2360,7 +2364,7 @@ final class WMController {
 
         if transitionedFromTiling {
             layoutRefreshController.requestLayoutCommandRelayout(
-                affectedWorkspaceIds: [updatedEntry.workspaceId]
+                affectedWorkspaceIds: [workspaceManager.workspace(for: token) ?? updatedEntry.workspaceId]
             )
         }
 
@@ -2373,6 +2377,7 @@ final class WMController {
         entry: WindowModel.Entry
     ) {
         workspaceManager.setManualLayoutOverride(override, for: token)
+        let entry = workspaceManager.entry(for: token) ?? entry
         let evaluation = evaluateWindowDisposition(
             axRef: entry.axRef,
             pid: token.pid
@@ -2435,6 +2440,7 @@ final class WMController {
             return .notFound
         }
 
+        let entry = workspaceManager.entry(for: scratchpadToken) ?? entry
         if entry.workspaceId == target.workspaceId,
            isManagedWindowDisplayable(entry.token)
         {
@@ -2830,24 +2836,25 @@ extension WMController {
             in: entry.workspaceId,
             onMonitor: workspaceManager.monitorId(for: entry.workspaceId)
         )
-        let canceledRequest = intentLedger.cancelManagedRequest(matching: token, workspaceId: entry.workspaceId)
+        let workspaceId = workspaceManager.workspace(for: token) ?? entry.workspaceId
+        let canceledRequest = intentLedger.cancelManagedRequest(matching: token, workspaceId: workspaceId)
         if let canceledRequest {
             _ = workspaceManager.cancelManagedFocusRequest(
                 matching: token,
-                workspaceId: entry.workspaceId,
+                workspaceId: workspaceId,
                 requestId: canceledRequest.requestId
             )
         } else {
             _ = workspaceManager.cancelCurrentManagedFocusRequest(
                 matching: token,
-                workspaceId: entry.workspaceId
+                workspaceId: workspaceId
             )
         }
         intentLedger.discardPendingFocus(token)
         if changed {
             layoutRefreshController.requestImmediateRelayout(
                 reason: .appActivationTransition,
-                affectedWorkspaceIds: [entry.workspaceId]
+                affectedWorkspaceIds: [workspaceId]
             )
         }
         return changed
@@ -2904,29 +2911,30 @@ extension WMController {
             return
         }
 
+        let workspaceId = entry.workspaceId
         let request = intentLedger.beginManagedRequest(
             token: token,
-            workspaceId: entry.workspaceId,
+            workspaceId: workspaceId,
             origin: origin
         )
         _ = workspaceManager.beginManagedFocusRequest(
             token,
-            in: entry.workspaceId,
-            onMonitor: workspaceManager.monitorId(for: entry.workspaceId),
+            in: workspaceId,
+            onMonitor: workspaceManager.monitorId(for: workspaceId),
             requestId: request.requestId
         )
         recordNiriCreateFocusTrace(
             .pendingFocusStarted(
                 requestId: request.requestId,
                 token: token,
-                workspaceId: entry.workspaceId
+                workspaceId: workspaceId
             )
         )
 
         performWindowFronting(pid: entry.pid, windowId: entry.windowId, axRef: entry.axRef)
         axEventHandler.probeFocusedWindowAfterFronting(
             expectedToken: token,
-            workspaceId: entry.workspaceId
+            workspaceId: workspaceId
         )
     }
 

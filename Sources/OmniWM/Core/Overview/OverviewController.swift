@@ -56,7 +56,7 @@ final class OverviewController {
         var windows: [WindowHandle: OverviewWindowLayoutData] = [:]
 
         var windowIds: [Int] {
-            windows.values.map(\.entry.windowId).sorted()
+            windows.values.map(\.token.windowId).sorted()
         }
     }
 
@@ -240,7 +240,8 @@ final class OverviewController {
                     let frame = AXWindowService.framePreferFast(entry.axRef) ?? .zero
 
                     windowData[handle] = (
-                        entry: entry,
+                        token: entry.token,
+                        workspaceId: entry.workspaceId,
                         title: title.isEmpty ? (appInfo?.name ?? "Window") : title,
                         appName: appInfo?.name ?? "Unknown",
                         appIcon: appInfo?.icon,
@@ -306,7 +307,8 @@ final class OverviewController {
     ) -> OverviewLayout {
         let localizedWindowData = overviewSnapshot.windows.mapValues { windowData in
             (
-                entry: windowData.entry,
+                token: windowData.token,
+                workspaceId: windowData.workspaceId,
                 title: windowData.title,
                 appName: windowData.appName,
                 appIcon: windowData.appIcon,
@@ -632,7 +634,7 @@ final class OverviewController {
     }
 
     private func rebuildLayoutAfterWindowClose(removedHandle: WindowHandle) {
-        let removedWindowId = overviewSnapshot.windows[removedHandle]?.entry.windowId
+        let removedWindowId = overviewSnapshot.windows[removedHandle]?.token.windowId
         if selectedWindowHandle == removedHandle {
             selectedWindowHandle = nil
         }
