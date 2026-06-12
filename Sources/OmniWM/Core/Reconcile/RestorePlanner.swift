@@ -123,6 +123,8 @@ struct RestorePlanner {
              .selectionChanged,
              .suppressedFocusChanged,
              .viewportChanged,
+             .viewportCommitted,
+             .viewportForgotten,
              .windowAdmitted,
              .windowModeChanged,
              .windowRekeyed,

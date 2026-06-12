@@ -296,6 +296,22 @@ enum StateReducer {
             viewport.adoptSelectionRevision(from: currentSnapshot.viewports[workspaceId])
             setViewport(viewport, for: workspaceId, currentSnapshot: currentSnapshot, plan: &plan)
 
+        case let .viewportCommitted(workspaceId, state, baseSelectionRevision, _):
+            let current = currentSnapshot.viewports[workspaceId]
+            var viewport = state
+            viewport.resolveCommitConflicts(
+                against: current ?? ViewportState(),
+                baseSelectionRevision: baseSelectionRevision
+            )
+            viewport.adoptSelectionRevision(from: current)
+            setViewport(viewport, for: workspaceId, currentSnapshot: currentSnapshot, plan: &plan)
+
+        case let .viewportForgotten(workspaceIds, _):
+            let present = workspaceIds.filter { currentSnapshot.viewports[$0] != nil }
+            if !present.isEmpty {
+                plan.viewport = .remove(workspaceIds: present)
+            }
+
         case let .selectionChanged(workspaceId, nodeId, _):
             var viewport = currentSnapshot.viewports[workspaceId] ?? ViewportState()
             viewport.selectedNodeId = nodeId

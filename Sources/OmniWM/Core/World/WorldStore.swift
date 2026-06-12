@@ -173,6 +173,8 @@ final class WorldStore {
              .systemWake,
              .topologyChanged,
              .viewportChanged,
+             .viewportCommitted,
+             .viewportForgotten,
              .workspaceFocusCleared:
             break
         }

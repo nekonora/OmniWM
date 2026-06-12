@@ -352,6 +352,8 @@ final class WorkspaceManager {
         case let .selectionChanged(workspaceId, _, _),
              let .viewportChanged(workspaceId, _, _):
             workspaceId
+        case let .viewportCommitted(workspaceId, _, _, _):
+            workspaceId
         default:
             nil
         }
@@ -500,6 +502,8 @@ final class WorkspaceManager {
              .selectionChanged,
              .suppressedFocusChanged,
              .viewportChanged,
+             .viewportCommitted,
+             .viewportForgotten,
              .windowAdmitted,
              .windowModeChanged,
              .windowRekeyed,
@@ -1686,23 +1690,15 @@ final class WorkspaceManager {
 
         var changed = false
 
-        if var viewportState = patch.viewportState {
-            let currentState = niriViewportState(for: patch.workspaceId)
-            let patchHasStaleSelection = patch.baseSelectionRevision
-                .map { $0 < currentState.selectionRevision } ?? false
-            if patchHasStaleSelection {
-                viewportState.selectedNodeId = currentState.selectedNodeId
-                viewportState.activeColumnIndex = currentState.activeColumnIndex
-                viewportState.selectionProgress = currentState.selectionProgress
-                viewportState.selectionRevision = currentState.selectionRevision
-            }
-            if viewportState.viewOffsetPixels.isGesture {
-                if case .spring = currentState.viewOffsetPixels {
-                    viewportState.viewOffsetPixels = currentState.viewOffsetPixels
-                    viewportState.activeColumnIndex = currentState.activeColumnIndex
-                }
-            }
-            updateNiriViewportState(viewportState, for: patch.workspaceId)
+        if let viewportState = patch.viewportState {
+            recordReconcileEvent(
+                .viewportCommitted(
+                    workspaceId: patch.workspaceId,
+                    state: viewportState,
+                    baseSelectionRevision: patch.baseSelectionRevision,
+                    source: .workspaceManager
+                )
+            )
             changed = true
         }
 
@@ -3308,9 +3304,12 @@ final class WorkspaceManager {
         if !rememberedIds.isEmpty {
             recordReconcileEvent(.focusForgotten(workspaceIds: rememberedIds, source: .workspaceManager))
         }
+        let viewportIds = toRemove.filter { sessionState.workspaceSessions[$0] != nil }
+        if !viewportIds.isEmpty {
+            recordReconcileEvent(.viewportForgotten(workspaceIds: viewportIds, source: .workspaceManager))
+        }
         for id in ids {
             workspacesById.removeValue(forKey: id)
-            sessionState.workspaceSessions.removeValue(forKey: id)
             workspaceRevisions.removeValue(forKey: id)
             layoutRevisions.removeValue(forKey: id)
             focusRevisions.removeValue(forKey: id)
@@ -3999,6 +3998,8 @@ final class WorkspaceManager {
              .selectionChanged,
              .suppressedFocusChanged,
              .viewportChanged,
+             .viewportCommitted,
+             .viewportForgotten,
              .workspaceFocusCleared:
             break
 

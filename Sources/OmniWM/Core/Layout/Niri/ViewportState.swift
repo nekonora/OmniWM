@@ -191,4 +191,18 @@ extension ViewportState {
             selectionRevision = max(selectionRevision, 1)
         }
     }
+
+    mutating func resolveCommitConflicts(against current: ViewportState, baseSelectionRevision: UInt64?) {
+        let hasStaleSelection = baseSelectionRevision.map { $0 < current.selectionRevision } ?? false
+        if hasStaleSelection {
+            selectedNodeId = current.selectedNodeId
+            activeColumnIndex = current.activeColumnIndex
+            selectionProgress = current.selectionProgress
+            selectionRevision = current.selectionRevision
+        }
+        if viewOffsetPixels.isGesture, case .spring = current.viewOffsetPixels {
+            viewOffsetPixels = current.viewOffsetPixels
+            activeColumnIndex = current.activeColumnIndex
+        }
+    }
 }

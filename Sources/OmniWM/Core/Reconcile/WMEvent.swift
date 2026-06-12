@@ -179,6 +179,16 @@ enum WMEvent: Equatable {
         state: ViewportState,
         source: WMEventSource
     )
+    case viewportCommitted(
+        workspaceId: WorkspaceDescriptor.ID,
+        state: ViewportState,
+        baseSelectionRevision: UInt64?,
+        source: WMEventSource
+    )
+    case viewportForgotten(
+        workspaceIds: Set<WorkspaceDescriptor.ID>,
+        source: WMEventSource
+    )
     case selectionChanged(
         workspaceId: WorkspaceDescriptor.ID,
         nodeId: NodeId,
@@ -221,6 +231,8 @@ enum WMEvent: Equatable {
              .systemWake,
              .topologyChanged,
              .viewportChanged,
+             .viewportCommitted,
+             .viewportForgotten,
              .workspaceFocusCleared:
             nil
         }
@@ -255,6 +267,8 @@ enum WMEvent: Equatable {
              let .nativeFullscreenPlaceholderSelected(_, _, source),
              let .interactionMonitorChanged(_, _, source),
              let .viewportChanged(_, _, source),
+             let .viewportCommitted(_, _, _, source),
+             let .viewportForgotten(_, source),
              let .selectionChanged(_, _, source),
              let .systemSleep(source),
              let .systemWake(source):
@@ -318,6 +332,10 @@ enum WMEvent: Equatable {
             "interaction_monitor_changed monitor=\(String(describing: monitorId)) previous=\(String(describing: previousMonitorId))"
         case let .viewportChanged(workspaceId, state, _):
             "viewport_changed workspace=\(workspaceId.uuidString) selected=\(state.selectedNodeId.map(String.init(describing:)) ?? "nil") column=\(state.activeColumnIndex) target=\(state.viewOffsetPixels.target())"
+        case let .viewportCommitted(workspaceId, state, baseSelectionRevision, _):
+            "viewport_committed workspace=\(workspaceId.uuidString) selected=\(state.selectedNodeId.map(String.init(describing:)) ?? "nil") column=\(state.activeColumnIndex) base_revision=\(baseSelectionRevision.map { String($0) } ?? "nil")"
+        case let .viewportForgotten(workspaceIds, _):
+            "viewport_forgotten workspaces=\(workspaceIds.count)"
         case let .selectionChanged(workspaceId, nodeId, _):
             "selection_changed workspace=\(workspaceId.uuidString) node=\(nodeId)"
         case .systemSleep:

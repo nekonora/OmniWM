@@ -127,6 +127,8 @@ enum EventNormalizer {
              .systemSleep,
              .systemWake,
              .viewportChanged,
+             .viewportCommitted,
+             .viewportForgotten,
              .workspaceFocusCleared:
             return event
         }
