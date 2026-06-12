@@ -32,6 +32,7 @@ enum LayoutOperation: Equatable {
     case splitOrientationToggled
     case splitRatioChanged
     case splitSwapped
+    case tabActivated(token: WindowToken)
     case windowConsumedOrExpelled(token: WindowToken)
     case windowMovedInColumn(token: WindowToken)
     case windowMovedToRoot
@@ -65,6 +66,8 @@ enum LayoutOperation: Equatable {
             "split_ratio_changed"
         case .splitSwapped:
             "split_swapped"
+        case let .tabActivated(token):
+            "tab_activated token=\(token)"
         case let .windowConsumedOrExpelled(token):
             "window_consumed_or_expelled token=\(token)"
         case let .windowMovedInColumn(token):

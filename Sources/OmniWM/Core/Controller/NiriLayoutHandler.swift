@@ -210,10 +210,11 @@ enum NiriWindowMoveResult {
 
     private func recordLayoutOperation(
         _ operation: LayoutOperation,
-        in workspaceId: WorkspaceDescriptor.ID
+        in workspaceId: WorkspaceDescriptor.ID,
+        source: WMEventSource = .command
     ) {
         controller?.workspaceManager.recordReconcileEvent(
-            .layoutOperationPerformed(workspaceId: workspaceId, operation: operation, source: .command)
+            .layoutOperationPerformed(workspaceId: workspaceId, operation: operation, source: source)
         )
     }
 
@@ -1096,8 +1097,12 @@ enum NiriWindowMoveResult {
             return
         }
 
+        let activeTileChanged = column.activeTileIdx != storageIndex
         column.setActiveTileIdx(storageIndex)
         engine.updateTabbedColumnVisibility(column: column)
+        if activeTileChanged {
+            recordLayoutOperation(.tabActivated(token: target.token), in: workspaceId, source: .mouse)
+        }
 
         var state = controller.workspaceManager.niriViewportState(for: workspaceId)
         if let monitor = controller.workspaceManager.monitor(for: workspaceId) {
