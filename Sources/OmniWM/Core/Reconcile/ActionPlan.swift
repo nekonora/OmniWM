@@ -27,6 +27,11 @@ struct RestoreRefreshPlan: Equatable {
     var previousInteractionMonitorId: Monitor.ID?
 }
 
+enum ViewportPlan: Equatable {
+    case set(workspaceId: WorkspaceDescriptor.ID, state: ViewportState)
+    case remove(workspaceIds: Set<WorkspaceDescriptor.ID>)
+}
+
 struct ActionPlan: Equatable {
     var lifecyclePhase: WindowLifecyclePhase? = nil
     var observedState: ObservedWindowState? = nil
@@ -34,6 +39,7 @@ struct ActionPlan: Equatable {
     var restoreIntent: RestoreIntent? = nil
     var replacementCorrelation: ReplacementCorrelation? = nil
     var focusSession: FocusSessionSnapshot? = nil
+    var viewport: ViewportPlan? = nil
     var restoreRefresh: RestoreRefreshPlan? = nil
     var topologyTransition: TopologyTransitionPlan? = nil
     var persistedHydration: PersistedHydrationMutation? = nil
@@ -50,6 +56,7 @@ struct ActionPlan: Equatable {
             || restoreIntent != nil
             || replacementCorrelation != nil
             || focusSession != nil
+            || viewport != nil
             || restoreRefresh != nil
             || topologyTransition != nil
             || persistedHydration != nil
@@ -68,6 +75,16 @@ struct ActionPlan: Equatable {
         }
         if let focusSession {
             parts.append("focus=\(describe(focusSession))")
+        }
+        if let viewport {
+            switch viewport {
+            case let .set(workspaceId, state):
+                parts.append(
+                    "viewport=\(workspaceId.uuidString):selected=\(state.selectedNodeId.map(String.init(describing:)) ?? "nil"),column=\(state.activeColumnIndex)"
+                )
+            case let .remove(workspaceIds):
+                parts.append("viewport_removed=\(workspaceIds.count)")
+            }
         }
         if let restoreRefresh {
             if restoreRefresh.refreshRestoreIntents {

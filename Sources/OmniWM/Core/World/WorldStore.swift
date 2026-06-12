@@ -167,10 +167,12 @@ final class WorldStore {
              .nativeFullscreenPlaceholderSelected,
              .nonManagedFocusChanged,
              .nonManagedFocusTargetChanged,
+             .selectionChanged,
              .suppressedFocusChanged,
              .systemSleep,
              .systemWake,
              .topologyChanged,
+             .viewportChanged,
              .workspaceFocusCleared:
             break
         }

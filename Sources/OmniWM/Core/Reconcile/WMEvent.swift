@@ -174,6 +174,16 @@ enum WMEvent: Equatable {
         previousMonitorId: Monitor.ID?,
         source: WMEventSource
     )
+    case viewportChanged(
+        workspaceId: WorkspaceDescriptor.ID,
+        state: ViewportState,
+        source: WMEventSource
+    )
+    case selectionChanged(
+        workspaceId: WorkspaceDescriptor.ID,
+        nodeId: NodeId,
+        source: WMEventSource
+    )
     case systemSleep(source: WMEventSource)
     case systemWake(source: WMEventSource)
 
@@ -205,10 +215,12 @@ enum WMEvent: Equatable {
              .niriPlacementsResolved,
              .nonManagedFocusChanged,
              .nonManagedFocusTargetChanged,
+             .selectionChanged,
              .suppressedFocusChanged,
              .systemSleep,
              .systemWake,
              .topologyChanged,
+             .viewportChanged,
              .workspaceFocusCleared:
             nil
         }
@@ -242,6 +254,8 @@ enum WMEvent: Equatable {
              let .workspaceFocusCleared(_, source),
              let .nativeFullscreenPlaceholderSelected(_, _, source),
              let .interactionMonitorChanged(_, _, source),
+             let .viewportChanged(_, _, source),
+             let .selectionChanged(_, _, source),
              let .systemSleep(source),
              let .systemWake(source):
             source
@@ -302,6 +316,10 @@ enum WMEvent: Equatable {
             "native_fullscreen_placeholder_selected token=\(token) workspace=\(workspaceId.uuidString)"
         case let .interactionMonitorChanged(monitorId, previousMonitorId, _):
             "interaction_monitor_changed monitor=\(String(describing: monitorId)) previous=\(String(describing: previousMonitorId))"
+        case let .viewportChanged(workspaceId, state, _):
+            "viewport_changed workspace=\(workspaceId.uuidString) selected=\(state.selectedNodeId.map(String.init(describing:)) ?? "nil") column=\(state.activeColumnIndex) target=\(state.viewOffsetPixels.target())"
+        case let .selectionChanged(workspaceId, nodeId, _):
+            "selection_changed workspace=\(workspaceId.uuidString) node=\(nodeId)"
         case .systemSleep:
             "system_sleep"
         case .systemWake:

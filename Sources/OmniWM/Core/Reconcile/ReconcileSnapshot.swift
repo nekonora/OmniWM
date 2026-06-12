@@ -283,6 +283,7 @@ struct ReconcileSnapshot: Equatable {
     let topologyProfile: TopologyProfile
     let focusSession: FocusSessionSnapshot
     let windows: [ReconcileWindowSnapshot]
+    var viewports: [WorkspaceDescriptor.ID: ViewportState] = [:]
 
     var focusedToken: WindowToken? {
         focusSession.focusedToken

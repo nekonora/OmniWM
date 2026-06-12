@@ -178,3 +178,17 @@ struct ViewportState: Equatable {
 
     var displayRefreshRate: Double = 60.0
 }
+
+extension ViewportState {
+    mutating func adoptSelectionRevision(from current: ViewportState?) {
+        if let current {
+            if selectedNodeId != current.selectedNodeId {
+                selectionRevision = max(selectionRevision, current.selectionRevision &+ 1)
+            } else {
+                selectionRevision = max(selectionRevision, current.selectionRevision)
+            }
+        } else if selectedNodeId != nil {
+            selectionRevision = max(selectionRevision, 1)
+        }
+    }
+}

@@ -252,7 +252,8 @@ final class WorkspaceManager {
         return ReconcileSnapshot(
             topologyProfile: currentTopologyProfile(),
             focusSession: world.focus,
-            windows: windowSnapshots
+            windows: windowSnapshots,
+            viewports: sessionState.workspaceSessions.compactMapValues(\.niriViewportState)
         )
     }
 
@@ -300,6 +301,9 @@ final class WorkspaceManager {
     @discardableResult
     func recordReconcileEvent(_ event: WMEvent) -> ReconcileTxn {
         let previousFocus = world.focus
+        let viewportWorkspaceId = viewportWorkspaceId(for: event)
+        let previousViewport = viewportWorkspaceId
+            .flatMap { sessionState.workspaceSessions[$0]?.niriViewportState }
         let txn = world.commit(
             event,
             monitors: monitors,
@@ -337,7 +341,32 @@ final class WorkspaceManager {
             bumpRuntimeRevision(for: event)
         }
         bumpAuxiliaryFocusRevisionIfNeeded(for: event, previousFocus: previousFocus, plan: txn.plan)
+        if let viewportWorkspaceId {
+            bumpViewportRevisionIfNeeded(for: viewportWorkspaceId, previousViewport: previousViewport)
+        }
         return txn
+    }
+
+    private func viewportWorkspaceId(for event: WMEvent) -> WorkspaceDescriptor.ID? {
+        switch event {
+        case let .selectionChanged(workspaceId, _, _),
+             let .viewportChanged(workspaceId, _, _):
+            workspaceId
+        default:
+            nil
+        }
+    }
+
+    private func bumpViewportRevisionIfNeeded(
+        for workspaceId: WorkspaceDescriptor.ID,
+        previousViewport: ViewportState?
+    ) {
+        guard let nextViewport = sessionState.workspaceSessions[workspaceId]?.niriViewportState,
+              shouldBumpNiriViewportRevision(previous: previousViewport, next: nextViewport)
+        else {
+            return
+        }
+        bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout])
     }
 
     private func auxiliaryFocusStateChanged(from previous: FocusSessionSnapshot) -> Bool {
@@ -468,7 +497,9 @@ final class WorkspaceManager {
              .niriPlacementsResolved,
              .nonManagedFocusChanged,
              .nonManagedFocusTargetChanged,
+             .selectionChanged,
              .suppressedFocusChanged,
+             .viewportChanged,
              .windowAdmitted,
              .windowModeChanged,
              .windowRekeyed,
@@ -492,6 +523,10 @@ final class WorkspaceManager {
 
         if let focusSession = plan.focusSession {
             world.applyFocusSession(focusSession)
+        }
+
+        if let viewportPlan = plan.viewport {
+            applyViewportPlan(viewportPlan)
         }
 
         if let topologyTransition = plan.topologyTransition {
@@ -534,6 +569,19 @@ final class WorkspaceManager {
         }
 
         return resolvedPlan
+    }
+
+    private func applyViewportPlan(_ viewportPlan: ViewportPlan) {
+        switch viewportPlan {
+        case let .set(workspaceId, state):
+            var workspaceSession = sessionState.workspaceSessions[workspaceId] ?? SessionState.WorkspaceSession()
+            workspaceSession.niriViewportState = state
+            sessionState.workspaceSessions[workspaceId] = workspaceSession
+        case let .remove(workspaceIds):
+            for workspaceId in workspaceIds {
+                sessionState.workspaceSessions.removeValue(forKey: workspaceId)
+            }
+        }
     }
 
     @discardableResult
@@ -1604,9 +1652,13 @@ final class WorkspaceManager {
         if let nodeId {
             let currentSelection = niriViewportState(for: workspaceId).selectedNodeId
             if currentSelection != nodeId {
-                withNiriViewportState(for: workspaceId) {
-                    $0.selectedNodeId = nodeId
-                }
+                recordReconcileEvent(
+                    .selectionChanged(
+                        workspaceId: workspaceId,
+                        nodeId: nodeId,
+                        source: .workspaceManager
+                    )
+                )
                 changed = true
             }
         }
@@ -3014,23 +3066,13 @@ final class WorkspaceManager {
         _ state: ViewportState,
         for workspaceId: WorkspaceDescriptor.ID
     ) {
-        var workspaceSession = sessionState.workspaceSessions[workspaceId] ?? SessionState.WorkspaceSession()
-        let currentState = workspaceSession.niriViewportState
-        var nextState = state
-        if let currentState {
-            if nextState.selectedNodeId != currentState.selectedNodeId {
-                nextState.selectionRevision = max(nextState.selectionRevision, currentState.selectionRevision &+ 1)
-            } else {
-                nextState.selectionRevision = max(nextState.selectionRevision, currentState.selectionRevision)
-            }
-        } else if nextState.selectedNodeId != nil {
-            nextState.selectionRevision = max(nextState.selectionRevision, 1)
-        }
-        workspaceSession.niriViewportState = nextState
-        sessionState.workspaceSessions[workspaceId] = workspaceSession
-        if shouldBumpNiriViewportRevision(previous: currentState, next: nextState) {
-            bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout])
-        }
+        recordReconcileEvent(
+            .viewportChanged(
+                workspaceId: workspaceId,
+                state: state,
+                source: .workspaceManager
+            )
+        )
     }
 
     private func shouldBumpNiriViewportRevision(
@@ -3954,7 +3996,9 @@ final class WorkspaceManager {
              .interactionMonitorChanged,
              .nativeFullscreenPlaceholderSelected,
              .nonManagedFocusTargetChanged,
+             .selectionChanged,
              .suppressedFocusChanged,
+             .viewportChanged,
              .workspaceFocusCleared:
             break
 

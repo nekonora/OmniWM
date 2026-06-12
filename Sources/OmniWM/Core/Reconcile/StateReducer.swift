@@ -291,6 +291,17 @@ enum StateReducer {
             focusSession.previousInteractionMonitorId = previousMonitorId
             setFocusSession(focusSession, current: currentSnapshot.focusSession, plan: &plan)
 
+        case let .viewportChanged(workspaceId, state, _):
+            var viewport = state
+            viewport.adoptSelectionRevision(from: currentSnapshot.viewports[workspaceId])
+            setViewport(viewport, for: workspaceId, currentSnapshot: currentSnapshot, plan: &plan)
+
+        case let .selectionChanged(workspaceId, nodeId, _):
+            var viewport = currentSnapshot.viewports[workspaceId] ?? ViewportState()
+            viewport.selectedNodeId = nodeId
+            viewport.adoptSelectionRevision(from: currentSnapshot.viewports[workspaceId])
+            setViewport(viewport, for: workspaceId, currentSnapshot: currentSnapshot, plan: &plan)
+
         case .systemSleep:
             plan.notes = ["system_sleep"]
 
@@ -469,6 +480,18 @@ enum StateReducer {
     ) {
         guard next != current else { return }
         plan.focusSession = next
+    }
+
+    private static func setViewport(
+        _ next: ViewportState,
+        for workspaceId: WorkspaceDescriptor.ID,
+        currentSnapshot: ReconcileSnapshot,
+        plan: inout ActionPlan
+    ) {
+        if let current = currentSnapshot.viewports[workspaceId], current == next {
+            return
+        }
+        plan.viewport = .set(workspaceId: workspaceId, state: next)
     }
 
     private static func nonManagedFocusChanged(
