@@ -62,6 +62,15 @@ final class WorkspaceNavigationHandler {
         )
     }
 
+    private func recordLayoutOperation(
+        _ operation: LayoutOperation,
+        in workspaceId: WorkspaceDescriptor.ID
+    ) {
+        controller?.workspaceManager.recordReconcileEvent(
+            .layoutOperationPerformed(workspaceId: workspaceId, operation: operation, source: .command)
+        )
+    }
+
     private func commitWorkspaceSelection(
         nodeId: NodeId?,
         focusedToken: WindowToken?,
@@ -472,6 +481,7 @@ final class WorkspaceNavigationHandler {
                     targetState: targetState,
                     targetFocusedToken: nil
                 )
+                recordLayoutOperation(.windowMovedToWorkspace(token: token, to: targetWsId), in: sourceWsId)
                 movedWithNiri = true
             }
         }
@@ -613,6 +623,7 @@ final class WorkspaceNavigationHandler {
             targetState: targetState,
             targetFocusedToken: nil
         )
+        recordLayoutOperation(.columnMovedToWorkspace(to: targetWorkspace.id), in: wsId)
 
         for window in column.windowNodes {
             controller.reassignManagedWindow(window.token, to: targetWorkspace.id)
@@ -682,6 +693,7 @@ final class WorkspaceNavigationHandler {
             targetState: targetState,
             targetFocusedToken: nil
         )
+        recordLayoutOperation(.columnMovedToWorkspace(to: targetWsId), in: wsId)
 
         for window in column.windowNodes {
             controller.reassignManagedWindow(window.token, to: targetWsId)

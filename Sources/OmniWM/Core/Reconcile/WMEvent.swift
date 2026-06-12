@@ -21,6 +21,7 @@ enum NativeFullscreenLayoutChange: Equatable {
 
 enum LayoutOperation: Equatable {
     case columnMoved
+    case columnMovedToWorkspace(to: WorkspaceDescriptor.ID)
     case columnWidthChanged
     case displayModeChanged
     case fullscreenToggled(token: WindowToken)
@@ -34,6 +35,7 @@ enum LayoutOperation: Equatable {
     case windowConsumedOrExpelled(token: WindowToken)
     case windowMovedInColumn(token: WindowToken)
     case windowMovedToRoot
+    case windowMovedToWorkspace(token: WindowToken, to: WorkspaceDescriptor.ID)
     case windowSizeChanged(token: WindowToken)
     case windowsSwapped
 
@@ -41,6 +43,8 @@ enum LayoutOperation: Equatable {
         switch self {
         case .columnMoved:
             "column_moved"
+        case let .columnMovedToWorkspace(to):
+            "column_moved_to_workspace to=\(to.uuidString)"
         case .columnWidthChanged:
             "column_width_changed"
         case .displayModeChanged:
@@ -67,6 +71,8 @@ enum LayoutOperation: Equatable {
             "window_moved_in_column token=\(token)"
         case .windowMovedToRoot:
             "window_moved_to_root"
+        case let .windowMovedToWorkspace(token, to):
+            "window_moved_to_workspace token=\(token) to=\(to.uuidString)"
         case let .windowSizeChanged(token):
             "window_size_changed token=\(token)"
         case .windowsSwapped:
