@@ -12,8 +12,17 @@ final class DwindleLayoutEngine {
     var settings: DwindleSettings = DwindleSettings()
     private var monitorSettings: [Monitor.ID: ResolvedDwindleSettings] = [:]
     var animationClock: AnimationClock?
+    var isMutationSanctioned = true
+
+    func assertSanctionedMutation(_ operation: StaticString = #function) {
+        assert(
+            isMutationSanctioned,
+            "\(operation) mutated the Dwindle layout tree outside a sanctioned WorldStore scope"
+        )
+    }
 
     func updateWindowConstraints(for token: WindowToken, constraints: WindowSizeConstraints) {
+        assertSanctionedMutation()
         windowConstraints[token] = constraints.normalized()
     }
 
@@ -22,10 +31,12 @@ final class DwindleLayoutEngine {
     }
 
     func updateMonitorSettings(_ resolved: ResolvedDwindleSettings, for monitorId: Monitor.ID) {
+        assertSanctionedMutation()
         monitorSettings[monitorId] = resolved
     }
 
     func cleanupRemovedMonitor(_ monitorId: Monitor.ID) {
+        assertSanctionedMutation()
         monitorSettings.removeValue(forKey: monitorId)
     }
 
@@ -94,11 +105,13 @@ final class DwindleLayoutEngine {
     }
 
     func setSelectedNode(_ node: DwindleNode?, in workspaceId: WorkspaceDescriptor.ID) {
+        assertSanctionedMutation()
         selectedNodeId[workspaceId] = node?.id
     }
 
     @discardableResult
     func setPreselection(_ direction: Direction?, in workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        assertSanctionedMutation()
         guard preselection[workspaceId] != direction else { return false }
         if let direction {
             preselection[workspaceId] = direction
@@ -249,6 +262,7 @@ final class DwindleLayoutEngine {
     }
 
     func removeWindow(token: WindowToken, from workspaceId: WorkspaceDescriptor.ID) {
+        assertSanctionedMutation()
         guard let node = tokenToNode.removeValue(forKey: token) else { return }
         windowConstraints.removeValue(forKey: token)
 
@@ -265,6 +279,7 @@ final class DwindleLayoutEngine {
         to newToken: WindowToken,
         in workspaceId: WorkspaceDescriptor.ID
     ) -> Bool {
+        assertSanctionedMutation()
         guard oldToken != newToken,
               tokenToNode[newToken] == nil,
               let node = tokenToNode.removeValue(forKey: oldToken),
@@ -339,6 +354,7 @@ final class DwindleLayoutEngine {
         focusedToken: WindowToken?,
         bootstrapScreen: CGRect? = nil
     ) -> Set<WindowToken> {
+        assertSanctionedMutation()
         let existingWindows = Set(roots[workspaceId]?.collectAllWindows() ?? [])
         let newWindows = Set(tokens)
 
@@ -838,6 +854,7 @@ final class DwindleLayoutEngine {
     }
 
     func moveFocus(direction: Direction, in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
+        assertSanctionedMutation()
         guard let current = selectedNode(in: workspaceId),
               let currentHandle = current.windowToken
         else {
@@ -864,6 +881,7 @@ final class DwindleLayoutEngine {
     }
 
     func swapWindows(direction: Direction, in workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        assertSanctionedMutation()
         guard let current = selectedNode(in: workspaceId),
               case let .leaf(currentHandle, currentFullscreen) = current.kind,
               let ch = currentHandle,
@@ -896,6 +914,7 @@ final class DwindleLayoutEngine {
 
     @discardableResult
     func toggleOrientation(in workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        assertSanctionedMutation()
         guard let selected = selectedNode(in: workspaceId),
               let parent = selected.parent,
               case let .split(orientation, ratio) = parent.kind
@@ -908,6 +927,7 @@ final class DwindleLayoutEngine {
     }
 
     func toggleFullscreen(in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
+        assertSanctionedMutation()
         guard let selected = selectedNode(in: workspaceId),
               case let .leaf(handle, fullscreen) = selected.kind
         else {
@@ -924,6 +944,7 @@ final class DwindleLayoutEngine {
         beside anchorToken: WindowToken,
         in workspaceId: WorkspaceDescriptor.ID
     ) -> Bool {
+        assertSanctionedMutation()
         guard token != anchorToken,
               let sourceNode = findNode(for: token),
               let anchorNode = findNode(for: anchorToken),
@@ -966,6 +987,7 @@ final class DwindleLayoutEngine {
 
     @discardableResult
     func moveSelectionToRoot(stable: Bool, in workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        assertSanctionedMutation()
         guard let selected = selectedNode(in: workspaceId) else { return false }
         let leaf = selected.isLeaf ? selected : selected.descendToFirstLeaf()
         guard let root = roots[workspaceId] else { return false }
@@ -1022,6 +1044,7 @@ final class DwindleLayoutEngine {
         direction: Direction,
         in workspaceId: WorkspaceDescriptor.ID
     ) -> Bool {
+        assertSanctionedMutation()
         guard let selected = selectedNode(in: workspaceId) else { return false }
 
         let targetOrientation = direction.dwindleOrientation
@@ -1057,6 +1080,7 @@ final class DwindleLayoutEngine {
 
     @discardableResult
     func balanceSizes(in workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        assertSanctionedMutation()
         guard let root = roots[workspaceId] else { return false }
         return balanceSizesRecursive(root)
     }
@@ -1075,6 +1099,7 @@ final class DwindleLayoutEngine {
 
     @discardableResult
     func swapSplit(in workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        assertSanctionedMutation()
         guard let selected = selectedNode(in: workspaceId),
               let parent = selected.parent,
               parent.children.count == 2 else { return false }
@@ -1087,6 +1112,7 @@ final class DwindleLayoutEngine {
 
     @discardableResult
     func cycleSplitRatio(forward: Bool, in workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        assertSanctionedMutation()
         guard let selected = selectedNode(in: workspaceId),
               let parent = selected.parent,
               case let .split(orientation, currentRatio) = parent.kind else { return false }

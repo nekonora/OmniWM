@@ -124,6 +124,7 @@ struct RestorePlanner {
              .scratchpadChanged,
              .selectionChanged,
              .suppressedFocusChanged,
+             .userCommand,
              .viewportChanged,
              .viewportCommitted,
              .viewportForgotten,

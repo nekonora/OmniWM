@@ -459,13 +459,15 @@ final class WorkspaceNavigationHandler {
         {
             var sourceState = controller.workspaceManager.niriViewportState(for: sourceWsId)
             var targetState = controller.workspaceManager.niriViewportState(for: targetWsId)
-            if let result = engine.moveWindowToWorkspace(
-                windowNode,
-                from: sourceWsId,
-                to: targetWsId,
-                sourceState: &sourceState,
-                targetState: &targetState
-            ) {
+            if let result = controller.workspaceManager.withEngineMutationScope({
+                engine.moveWindowToWorkspace(
+                    windowNode,
+                    from: sourceWsId,
+                    to: targetWsId,
+                    sourceState: &sourceState,
+                    targetState: &targetState
+                )
+            }) {
                 if let newFocusId = result.newFocusNodeId,
                    let newFocusNode = engine.findNode(by: newFocusId) as? NiriWindow
                 {
@@ -499,7 +501,9 @@ final class WorkspaceNavigationHandler {
             }
 
             if targetIsDwindle, engine.findNode(for: token) != nil {
-                engine.removeWindow(token: token)
+                controller.workspaceManager.withEngineMutationScope {
+                    engine.removeWindow(token: token)
+                }
             }
 
             if let selectedId = sourceState.selectedNodeId,
@@ -526,7 +530,9 @@ final class WorkspaceNavigationHandler {
                   let sourceWsId,
                   let dwindleEngine = controller.dwindleEngine
         {
-            dwindleEngine.removeWindow(token: token, from: sourceWsId)
+            controller.workspaceManager.withEngineMutationScope {
+                dwindleEngine.removeWindow(token: token, from: sourceWsId)
+            }
         }
 
         let succeeded: Bool
@@ -606,13 +612,15 @@ final class WorkspaceNavigationHandler {
             return
         }
 
-        guard let result = engine.moveColumnToWorkspace(
-            column,
-            from: wsId,
-            to: targetWorkspace.id,
-            sourceState: &sourceState,
-            targetState: &targetState
-        ) else {
+        guard let result = controller.workspaceManager.withEngineMutationScope({
+            engine.moveColumnToWorkspace(
+                column,
+                from: wsId,
+                to: targetWorkspace.id,
+                sourceState: &sourceState,
+                targetState: &targetState
+            )
+        }) else {
             return
         }
 
@@ -676,13 +684,15 @@ final class WorkspaceNavigationHandler {
             return
         }
 
-        guard let result = engine.moveColumnToWorkspace(
-            column,
-            from: wsId,
-            to: targetWsId,
-            sourceState: &sourceState,
-            targetState: &targetState
-        ) else {
+        guard let result = controller.workspaceManager.withEngineMutationScope({
+            engine.moveColumnToWorkspace(
+                column,
+                from: wsId,
+                to: targetWsId,
+                sourceState: &sourceState,
+                targetState: &targetState
+            )
+        }) else {
             return
         }
 
@@ -760,14 +770,16 @@ final class WorkspaceNavigationHandler {
                 targetState.selectedNodeId = movedNode.id
                 let gap = CGFloat(controller.workspaceManager.gaps)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
-                engine.ensureSelectionVisible(
-                    node: movedNode,
-                    in: target.id,
-                    motion: controller.motionPolicy.snapshot(),
-                    state: &targetState,
-                    workingFrame: workingFrame,
-                    gaps: gap
-                )
+                controller.workspaceManager.withEngineMutationScope {
+                    engine.ensureSelectionVisible(
+                        node: movedNode,
+                        in: target.id,
+                        motion: controller.motionPolicy.snapshot(),
+                        state: &targetState,
+                        workingFrame: workingFrame,
+                        gaps: gap
+                    )
+                }
             }
             applySessionPatch(
                 workspaceId: target.id,
@@ -880,14 +892,16 @@ final class WorkspaceNavigationHandler {
 
                 let gap = CGFloat(controller.workspaceManager.gaps)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
-                engine.ensureSelectionVisible(
-                    node: movedNode,
-                    in: targetWsId,
-                    motion: controller.motionPolicy.snapshot(),
-                    state: &targetState,
-                    workingFrame: workingFrame,
-                    gaps: gap
-                )
+                controller.workspaceManager.withEngineMutationScope {
+                    engine.ensureSelectionVisible(
+                        node: movedNode,
+                        in: targetWsId,
+                        motion: controller.motionPolicy.snapshot(),
+                        state: &targetState,
+                        workingFrame: workingFrame,
+                        gaps: gap
+                    )
+                }
             }
             applySessionPatch(
                 workspaceId: targetWsId,

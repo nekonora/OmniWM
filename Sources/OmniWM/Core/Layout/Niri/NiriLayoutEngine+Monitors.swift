@@ -23,6 +23,7 @@ extension NiriLayoutEngine {
     }
 
     func updateMonitors(_ newMonitors: [Monitor], orientations: [Monitor.ID: Monitor.Orientation] = [:]) {
+        assertSanctionedMutation()
         for monitor in newMonitors {
             if let niriMonitor = monitors[monitor.id] {
                 let orientation = orientations[monitor.id]
@@ -35,16 +36,19 @@ extension NiriLayoutEngine {
     }
 
     func cleanupRemovedMonitor(_ monitorId: Monitor.ID) {
+        assertSanctionedMutation()
         monitors.removeValue(forKey: monitorId)
     }
 
     func updateMonitorOrientations(_ orientations: [Monitor.ID: Monitor.Orientation]) {
+        assertSanctionedMutation()
         for (monitorId, orientation) in orientations {
             monitors[monitorId]?.updateOrientation(orientation)
         }
     }
 
     func updateMonitorSettings(_ settings: ResolvedNiriSettings, for monitorId: Monitor.ID) {
+        assertSanctionedMutation()
         monitors[monitorId]?.resolvedSettings = settings
     }
 
@@ -135,6 +139,7 @@ extension NiriLayoutEngine {
         _ assignments: [(workspaceId: WorkspaceDescriptor.ID, monitor: Monitor)],
         orientations: [Monitor.ID: Monitor.Orientation] = [:]
     ) {
+        assertSanctionedMutation()
         var desiredOwners: [WorkspaceDescriptor.ID: Monitor.ID] = [:]
         desiredOwners.reserveCapacity(assignments.count)
 

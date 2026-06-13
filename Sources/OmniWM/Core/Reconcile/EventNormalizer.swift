@@ -128,6 +128,7 @@ enum EventNormalizer {
              .suppressedFocusChanged,
              .systemSleep,
              .systemWake,
+             .userCommand,
              .viewportChanged,
              .viewportCommitted,
              .viewportForgotten,

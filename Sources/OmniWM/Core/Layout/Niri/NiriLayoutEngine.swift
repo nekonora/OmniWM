@@ -140,6 +140,14 @@ final class NiriLayoutEngine {
 
     var windowMovementAnimationConfig: SpringConfig = .niriWindowMovement
     var animationClock: AnimationClock?
+    var isMutationSanctioned = true
+
+    func assertSanctionedMutation(_ operation: StaticString = #function) {
+        assert(
+            isMutationSanctioned,
+            "\(operation) mutated the Niri layout tree outside a sanctioned WorldStore scope"
+        )
+    }
 
     var presetColumnWidths: [PresetSize] = NiriLayoutEngine.defaultPresetColumnWidths
     var presetWindowHeights: [PresetSize] = NiriLayoutEngine.defaultPresetWindowHeights
@@ -297,6 +305,7 @@ final class NiriLayoutEngine {
     }
 
     func activateWindow(_ nodeId: NodeId) {
+        assertSanctionedMutation()
         guard let node = findNode(by: nodeId),
               let col = column(of: node) else { return }
         let windowNodes = col.windowNodes
@@ -328,6 +337,7 @@ final class NiriLayoutEngine {
         presetColumnWidths: [PresetSize]? = nil,
         defaultColumnWidth: CGFloat?? = nil
     ) {
+        assertSanctionedMutation()
         if let max = maxVisibleColumns {
             self.maxVisibleColumns = max.clamped(to: 1 ... 5)
         }

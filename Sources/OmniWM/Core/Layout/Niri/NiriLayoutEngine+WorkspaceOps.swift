@@ -17,6 +17,7 @@ extension NiriLayoutEngine {
         sourceState: inout ViewportState,
         targetState: inout ViewportState
     ) -> WorkspaceMoveResult? {
+        assertSanctionedMutation()
         guard sourceWorkspaceId != targetWorkspaceId else { return nil }
 
         guard roots[sourceWorkspaceId] != nil,
@@ -63,6 +64,7 @@ extension NiriLayoutEngine {
         sourceState: inout ViewportState,
         targetState: inout ViewportState
     ) -> WorkspaceMoveResult? {
+        assertSanctionedMutation()
         guard sourceWorkspaceId != targetWorkspaceId else { return nil }
 
         guard roots[sourceWorkspaceId] != nil,

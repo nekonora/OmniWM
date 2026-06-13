@@ -243,25 +243,23 @@ final class CommandHandler {
         let workingFrame = controller.insetWorkingFrame(for: monitor)
         let gaps = CGFloat(controller.workspaceManager.gaps)
 
-        if let currentId = state.selectedNodeId {
-            engine.updateFocusTimestamp(for: currentId)
-        }
+        let previousWindow = controller.workspaceManager.withEngineMutationScope { () -> NiriWindow? in
+            if let currentId = state.selectedNodeId {
+                engine.updateFocusTimestamp(for: currentId)
+                engine.activateWindow(currentId)
+            }
 
-        if let currentId = state.selectedNodeId {
-            engine.activateWindow(currentId)
+            return engine.focusPrevious(
+                currentNodeId: state.selectedNodeId,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps,
+                limitToWorkspace: true
+            )
         }
-
-        guard let previousWindow = engine.focusPrevious(
-            currentNodeId: state.selectedNodeId,
-            in: wsId,
-            motion: motion,
-            state: &state,
-            workingFrame: workingFrame,
-            gaps: gaps,
-            limitToWorkspace: true
-        ) else {
-            return
-        }
+        guard let previousWindow else { return }
 
         controller.niriLayoutHandler.activateNode(
             previousWindow, in: wsId, state: &state,
@@ -482,7 +480,9 @@ final class CommandHandler {
         let gap = CGFloat(controller.workspaceManager.gaps)
         let workingFrame = controller.insetWorkingFrame(for: monitor)
         let motion = controller.motionPolicy.snapshot()
-        guard let newNode = navigationAction(engine, currentNode, wsId, motion, &state, workingFrame, gap) else {
+        guard let newNode = controller.workspaceManager.withEngineMutationScope({
+            navigationAction(engine, currentNode, wsId, motion, &state, workingFrame, gap)
+        }) else {
             onNoTarget?()
             return
         }

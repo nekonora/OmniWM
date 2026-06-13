@@ -194,7 +194,9 @@ import QuartzCore
             return
         }
 
-        engine.setSelectedNode(node, in: workspaceId)
+        controller.workspaceManager.withEngineMutationScope {
+            engine.setSelectedNode(node, in: workspaceId)
+        }
         _ = controller.workspaceManager.applySessionPatch(
             .init(
                 workspaceId: workspaceId,
@@ -293,15 +295,17 @@ import QuartzCore
         outerGapRight: CGFloat? = nil
     ) {
         guard let controller, let engine = controller.dwindleEngine else { return }
-        if let v = smartSplit { engine.settings.smartSplit = v }
-        if let v = defaultSplitRatio { engine.settings.defaultSplitRatio = v }
-        if let v = splitWidthMultiplier { engine.settings.splitWidthMultiplier = v }
-        if let v = singleWindowAspectRatio { engine.settings.singleWindowAspectRatio = v }
-        if let v = innerGap { engine.settings.innerGap = v }
-        if let v = outerGapTop { engine.settings.outerGapTop = v }
-        if let v = outerGapBottom { engine.settings.outerGapBottom = v }
-        if let v = outerGapLeft { engine.settings.outerGapLeft = v }
-        if let v = outerGapRight { engine.settings.outerGapRight = v }
+        controller.workspaceManager.withEngineMutationScope {
+            if let v = smartSplit { engine.settings.smartSplit = v }
+            if let v = defaultSplitRatio { engine.settings.defaultSplitRatio = v }
+            if let v = splitWidthMultiplier { engine.settings.splitWidthMultiplier = v }
+            if let v = singleWindowAspectRatio { engine.settings.singleWindowAspectRatio = v }
+            if let v = innerGap { engine.settings.innerGap = v }
+            if let v = outerGapTop { engine.settings.outerGapTop = v }
+            if let v = outerGapBottom { engine.settings.outerGapBottom = v }
+            if let v = outerGapLeft { engine.settings.outerGapLeft = v }
+            if let v = outerGapRight { engine.settings.outerGapRight = v }
+        }
         controller.layoutRefreshController.requestRelayout(reason: .layoutConfigChanged)
     }
 
@@ -312,7 +316,9 @@ import QuartzCore
               let engine = controller.dwindleEngine,
               let wsId = controller.activeWorkspace()?.id
         else { return }
-        perform(engine, wsId)
+        controller.workspaceManager.withEngineMutationScope {
+            perform(engine, wsId)
+        }
     }
 
     private func makeWorkspaceSnapshot(
@@ -343,6 +349,15 @@ import QuartzCore
     }
 
     private func buildRelayoutPlan(
+        snapshot: DwindleWorkspaceSnapshot,
+        engine: DwindleLayoutEngine
+    ) -> WorkspaceLayoutPlan {
+        let build = { self.buildRelayoutPlanBody(snapshot: snapshot, engine: engine) }
+        guard let workspaceManager = controller?.workspaceManager else { return build() }
+        return workspaceManager.withEngineBuildScope(build)
+    }
+
+    private func buildRelayoutPlanBody(
         snapshot: DwindleWorkspaceSnapshot,
         engine: DwindleLayoutEngine
     ) -> WorkspaceLayoutPlan {

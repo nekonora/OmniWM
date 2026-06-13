@@ -176,6 +176,7 @@ extension NiriLayoutEngine {
         fromContainerIndex: Int? = nil,
         previousActiveContainerPosition: CGFloat? = nil
     ) {
+        assertSanctionedMutation()
         let containers = columns(in: workspaceId)
         guard !containers.isEmpty else { return }
 
@@ -252,6 +253,7 @@ extension NiriLayoutEngine {
         gaps: CGFloat,
         orientation: Monitor.Orientation = .horizontal
     ) -> NiriNode? {
+        assertSanctionedMutation()
         if direction.primaryStep(for: orientation) != nil {
             return moveSelectionCrossContainer(
                 direction: direction,
@@ -328,7 +330,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> NiriNode? {
-        focusCombined(
+        assertSanctionedMutation()
+        return focusCombined(
             verticalDirection: .down,
             horizontalDirection: .left,
             currentSelection: currentSelection,
@@ -349,7 +352,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> NiriNode? {
-        focusCombined(
+        assertSanctionedMutation()
+        return focusCombined(
             verticalDirection: .up,
             horizontalDirection: .right,
             currentSelection: currentSelection,
@@ -403,7 +407,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> NiriNode? {
-        focusColumnByIndex(
+        assertSanctionedMutation()
+        return focusColumnByIndex(
             0,
             currentSelection: currentSelection,
             in: workspaceId,
@@ -422,6 +427,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> NiriNode? {
+        assertSanctionedMutation()
         let cols = columns(in: workspaceId)
         guard !cols.isEmpty else { return nil }
         return focusColumnByIndex(
@@ -444,7 +450,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> NiriNode? {
-        focusColumnByIndex(
+        assertSanctionedMutation()
+        return focusColumnByIndex(
             columnIndex,
             currentSelection: currentSelection,
             in: workspaceId,
@@ -464,7 +471,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> NiriNode? {
-        focusWindowAtNiriIndex(
+        assertSanctionedMutation()
+        return focusWindowAtNiriIndex(
             windowIndex,
             currentSelection: currentSelection,
             in: workspaceId,
@@ -483,7 +491,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> NiriNode? {
-        focusWindowAtVisualIndex(
+        assertSanctionedMutation()
+        return focusWindowAtVisualIndex(
             0,
             currentSelection: currentSelection,
             in: workspaceId,
@@ -502,7 +511,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> NiriNode? {
-        focusWindowAtVisualIndex(
+        assertSanctionedMutation()
+        return focusWindowAtVisualIndex(
             Int.max,
             currentSelection: currentSelection,
             in: workspaceId,
@@ -521,6 +531,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> NiriNode? {
+        assertSanctionedMutation()
         if let target = moveSelectionVertical(direction: .down, currentSelection: currentSelection) {
             ensureSelectionVisible(
                 node: target,
@@ -551,6 +562,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> NiriNode? {
+        assertSanctionedMutation()
         if let target = moveSelectionVertical(direction: .up, currentSelection: currentSelection) {
             ensureSelectionVisible(
                 node: target,
@@ -636,6 +648,7 @@ extension NiriLayoutEngine {
         gaps: CGFloat,
         limitToWorkspace: Bool = true
     ) -> NiriWindow? {
+        assertSanctionedMutation()
         let searchWorkspaceId = limitToWorkspace ? workspaceId : nil
         guard let previousWindow = findMostRecentlyFocusedWindow(
             excluding: currentNodeId,

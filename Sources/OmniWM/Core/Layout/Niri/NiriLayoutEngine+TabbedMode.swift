@@ -8,6 +8,7 @@ extension NiriLayoutEngine {
         state: ViewportState,
         motion: MotionSnapshot
     ) -> Bool {
+        assertSanctionedMutation()
         guard let selectedId = state.selectedNodeId,
               let selectedNode = findNode(by: selectedId),
               let column = column(of: selectedNode)
@@ -79,6 +80,7 @@ extension NiriLayoutEngine {
     }
 
     func updateTabbedColumnVisibility(column: NiriContainer) {
+        assertSanctionedMutation()
         let windows = column.windowNodes
         guard !windows.isEmpty else { return }
 

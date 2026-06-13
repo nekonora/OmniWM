@@ -25,6 +25,7 @@ extension NiriLayoutEngine {
     }
 
     func updateWindowConstraints(for token: WindowToken, constraints: WindowSizeConstraints) {
+        assertSanctionedMutation()
         guard let node = tokenToNode[token] else { return }
         let normalized = constraints.normalized()
         guard node.constraints != normalized else { return }
@@ -85,6 +86,7 @@ extension NiriLayoutEngine {
     }
 
     func removeWindow(token: WindowToken) {
+        assertSanctionedMutation()
         guard let node = tokenToNode[token] else { return }
         closingTokens.remove(token)
 
@@ -123,6 +125,7 @@ extension NiriLayoutEngine {
         selectedNodeId: NodeId?,
         removedNodeIds externallyRemovedNodeIds: [NodeId]
     ) -> NiriRemovalResult {
+        assertSanctionedMutation()
         guard !tokens.isEmpty,
               let root = root(for: workspaceId)
         else {
@@ -481,6 +484,7 @@ extension NiriLayoutEngine {
 
     @discardableResult
     func rekeyWindow(from oldToken: WindowToken, to newToken: WindowToken) -> Bool {
+        assertSanctionedMutation()
         guard oldToken != newToken,
               tokenToNode[newToken] == nil,
               let node = tokenToNode.removeValue(forKey: oldToken)
@@ -512,6 +516,7 @@ extension NiriLayoutEngine {
         selectedNodeId: NodeId?,
         focusedToken: WindowToken? = nil
     ) -> Set<WindowToken> {
+        assertSanctionedMutation()
         let root = ensureRoot(for: workspaceId)
         let existingIdSet = root.windowIdSet
 
@@ -599,6 +604,7 @@ extension NiriLayoutEngine {
     }
 
     func updateFocusTimestamp(for nodeId: NodeId) {
+        assertSanctionedMutation()
         guard let node = findNode(by: nodeId) as? NiriWindow else { return }
         node.lastFocusedTime = Date()
     }

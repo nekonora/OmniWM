@@ -416,7 +416,9 @@ final class WindowActionHandler {
                let colIdx = engine.columnIndex(of: column, in: workspaceId),
                let monitor = controller.workspaceManager.monitor(for: workspaceId)
             {
-                engine.activateWindow(niriWindow.id)
+                controller.workspaceManager.withEngineMutationScope {
+                    engine.activateWindow(niriWindow.id)
+                }
 
                 let cols = engine.columns(in: workspaceId)
                 let gap = CGFloat(controller.workspaceManager.gaps)
@@ -529,7 +531,9 @@ final class WindowActionHandler {
         }
 
         if sourceWorkspaceId == targetWorkspaceId {
-            guard engine.summonWindowRight(token, beside: focusedToken, in: targetWorkspaceId) else {
+            guard controller.workspaceManager.withEngineMutationScope({
+                engine.summonWindowRight(token, beside: focusedToken, in: targetWorkspaceId)
+            }) else {
                 return false
             }
             controller.workspaceManager.recordLayoutOperation(.windowInserted(token: token), in: targetWorkspaceId)
@@ -537,8 +541,10 @@ final class WindowActionHandler {
             return true
         }
 
-        engine.setSelectedNode(focusedNode, in: targetWorkspaceId)
-        engine.setPreselection(.right, in: targetWorkspaceId)
+        controller.workspaceManager.withEngineMutationScope {
+            engine.setSelectedNode(focusedNode, in: targetWorkspaceId)
+            engine.setPreselection(.right, in: targetWorkspaceId)
+        }
 
         guard controller.workspaceNavigationHandler.moveWindow(
             handle: WindowHandle(id: token),

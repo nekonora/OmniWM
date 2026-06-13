@@ -2361,7 +2361,9 @@ final class AXEventHandler {
         if let dwindleEngine = controller.dwindleEngine,
            let node = dwindleEngine.findNode(for: entry.token)
         {
-            dwindleEngine.setSelectedNode(node, in: wsId)
+            controller.workspaceManager.withEngineMutationScope {
+                dwindleEngine.setSelectedNode(node, in: wsId)
+            }
         }
 
         var preferredMouseFrame: CGRect?
@@ -2679,10 +2681,6 @@ final class AXEventHandler {
             return nil
         }
 
-        _ = controller.niriEngine?.rekeyWindow(from: oldToken, to: newToken)
-        if let workspaceId = controller.workspaceManager.workspace(for: newToken) {
-            _ = controller.dwindleEngine?.rekeyWindow(from: oldToken, to: newToken, in: workspaceId)
-        }
         controller.intentLedger.rekeyManagedRequest(from: oldToken, to: newToken)
         controller.axManager.rekeyWindowState(
             pid: newToken.pid,

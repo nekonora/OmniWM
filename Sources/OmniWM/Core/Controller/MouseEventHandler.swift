@@ -1362,7 +1362,9 @@ final class MouseEventHandler {
                 plannedSeq: controller.workspaceManager.worldSeq
             )
         )
-        engine.updateFocusTimestamp(for: window.id)
+        controller.workspaceManager.withEngineMutationScope {
+            engine.updateFocusTimestamp(for: window.id)
+        }
     }
 
     private nonisolated static func processTapCallback(

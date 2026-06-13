@@ -11,7 +11,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
-        switch direction {
+        assertSanctionedMutation()
+        return switch direction {
         case .down,
              .up:
             moveWindowVertical(node, direction: direction)

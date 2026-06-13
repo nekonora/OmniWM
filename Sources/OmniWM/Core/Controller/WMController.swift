@@ -510,10 +510,12 @@ final class WMController {
     }
 
     func updateMonitorOrientations() {
-        let monitors = workspaceManager.monitors
-        for monitor in monitors {
-            let orientation = settings.effectiveOrientation(for: monitor)
-            niriEngine?.monitors[monitor.id]?.updateOrientation(orientation)
+        var orientations: [Monitor.ID: Monitor.Orientation] = [:]
+        for monitor in workspaceManager.monitors {
+            orientations[monitor.id] = settings.effectiveOrientation(for: monitor)
+        }
+        workspaceManager.withEngineMutationScope {
+            niriEngine?.updateMonitorOrientations(orientations)
         }
         layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
     }
@@ -526,9 +528,11 @@ final class WMController {
 
     func updateMonitorDwindleSettings() {
         guard let engine = dwindleEngine else { return }
-        for monitor in workspaceManager.monitors {
-            let resolved = settings.resolvedDwindleSettings(for: monitor)
-            engine.updateMonitorSettings(resolved, for: monitor.id)
+        workspaceManager.withEngineMutationScope {
+            for monitor in workspaceManager.monitors {
+                let resolved = settings.resolvedDwindleSettings(for: monitor)
+                engine.updateMonitorSettings(resolved, for: monitor.id)
+            }
         }
         layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
     }

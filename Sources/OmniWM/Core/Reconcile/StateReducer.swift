@@ -330,6 +330,9 @@ enum StateReducer {
 
         case .systemWake:
             plan.notes = ["system_wake"]
+
+        case .userCommand:
+            plan.notes = ["user_command"]
         }
 
         if plan.restoreIntent == nil, plan.mutatesRuntimeState, let existingEntry {

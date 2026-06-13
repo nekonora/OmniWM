@@ -61,6 +61,27 @@ final class WorldStore {
     private var broadcastMarks = InvalidationMarks()
     private var workspaceMarks: [WorkspaceDescriptor.ID: InvalidationMarks] = [:]
     private var commitDepth = 0
+    private var buildScopeDepth = 0
+
+    var isEngineMutationSanctioned: Bool {
+        commitDepth > 0 || buildScopeDepth > 0
+    }
+
+    func withEngineBuildScope<T>(_ body: () -> T) -> T {
+        buildScopeDepth += 1
+        pushEngineSanction()
+        defer {
+            buildScopeDepth -= 1
+            pushEngineSanction()
+        }
+        return body()
+    }
+
+    private func pushEngineSanction() {
+        let sanctioned = isEngineMutationSanctioned
+        niriEngine?.isMutationSanctioned = sanctioned
+        dwindleEngine?.isMutationSanctioned = sanctioned
+    }
 
     init(nowProvider: @escaping () -> Date = Date.init) {
         self.nowProvider = nowProvider
@@ -71,13 +92,19 @@ final class WorldStore {
         _ event: WMEvent,
         monitors: [Monitor],
         snapshot: () -> ReconcileSnapshot,
+        preMutate: () -> Void = {},
         resolvePlan: (ActionPlan, WindowToken?) -> ActionPlan
     ) -> ReconcileTxn {
         commitDepth += 1
-        defer { commitDepth -= 1 }
+        pushEngineSanction()
+        defer {
+            commitDepth -= 1
+            pushEngineSanction()
+        }
         seq &+= 1
         let committedSeq = seq
 
+        preMutate()
         applyWindowMutation(event, phase: .beforePlan, monitors: monitors)
         let existingEntry = event.token.flatMap { model.entry(for: $0) }
         let normalizedEvent = EventNormalizer.normalize(
@@ -172,7 +199,7 @@ final class WorldStore {
                 managedReplacementMetadata: metadata
             )
 
-        case let .windowRekeyed(from, to, _, _, _, newAXRef, metadata, _):
+        case let .windowRekeyed(from, to, workspaceId, _, _, newAXRef, metadata, _):
             guard phase == .beforePlan else { return }
             model.rekeyWindow(
                 from: from,
@@ -180,6 +207,8 @@ final class WorldStore {
                 newAXRef: newAXRef,
                 managedReplacementMetadata: metadata
             )
+            _ = niriEngine?.rekeyWindow(from: from, to: to)
+            _ = dwindleEngine?.rekeyWindow(from: from, to: to, in: workspaceId)
 
         case let .windowRemoved(token, _, _):
             guard phase == .afterPlan else { return }
@@ -265,6 +294,7 @@ final class WorldStore {
              .systemSleep,
              .systemWake,
              .topologyChanged,
+             .userCommand,
              .viewportChanged,
              .viewportCommitted,
              .viewportForgotten,
@@ -448,10 +478,12 @@ extension WorldStore {
     }
 
     func installNiriEngine(_ engine: NiriLayoutEngine?) {
+        engine?.isMutationSanctioned = isEngineMutationSanctioned
         niriEngine = engine
     }
 
     func installDwindleEngine(_ engine: DwindleLayoutEngine?) {
+        engine?.isMutationSanctioned = isEngineMutationSanctioned
         dwindleEngine = engine
     }
 

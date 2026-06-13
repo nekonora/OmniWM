@@ -243,6 +243,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) {
+        assertSanctionedMutation()
         guard let resize = interactiveResize else { return }
 
         if let windowId, windowId != resize.windowId {

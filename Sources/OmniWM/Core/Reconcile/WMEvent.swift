@@ -277,6 +277,10 @@ enum WMEvent: Equatable {
     )
     case systemSleep(source: WMEventSource)
     case systemWake(source: WMEventSource)
+    case userCommand(
+        workspaceId: WorkspaceDescriptor.ID?,
+        source: WMEventSource
+    )
 
     var token: WindowToken? {
         switch self {
@@ -313,6 +317,7 @@ enum WMEvent: Equatable {
              .systemSleep,
              .systemWake,
              .topologyChanged,
+             .userCommand,
              .viewportChanged,
              .viewportCommitted,
              .viewportForgotten,
@@ -358,7 +363,8 @@ enum WMEvent: Equatable {
              let .scratchpadChanged(_, source),
              let .visibleWorkspacesChanged(_, source),
              let .systemSleep(source),
-             let .systemWake(source):
+             let .systemWake(source),
+             let .userCommand(_, source):
             source
         }
     }
@@ -435,6 +441,8 @@ enum WMEvent: Equatable {
             "system_sleep"
         case .systemWake:
             "system_wake"
+        case let .userCommand(workspaceId, _):
+            "user_command workspace=\(workspaceId?.uuidString ?? "nil")"
         }
     }
 }

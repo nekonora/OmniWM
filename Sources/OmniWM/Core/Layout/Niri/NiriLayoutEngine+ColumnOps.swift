@@ -155,6 +155,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
+        assertSanctionedMutation()
         guard let root = roots[workspaceId] else { return false }
         guard let sourceColumn = findColumn(containing: window, in: workspaceId) else { return false }
 
@@ -249,6 +250,7 @@ extension NiriLayoutEngine {
         workingAreaWidth: CGFloat,
         gaps: CGFloat
     ) {
+        assertSanctionedMutation()
         let cols = columns(in: workspaceId)
         guard !cols.isEmpty else { return }
 
@@ -285,6 +287,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
+        assertSanctionedMutation()
         guard direction == .left || direction == .right else { return false }
 
         let cols = columns(in: workspaceId)
@@ -312,7 +315,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
-        moveColumnToIndex(
+        assertSanctionedMutation()
+        return moveColumnToIndex(
             column,
             1,
             in: workspaceId,
@@ -331,7 +335,8 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
-        moveColumnToIndex(
+        assertSanctionedMutation()
+        return moveColumnToIndex(
             column,
             Int.max,
             in: workspaceId,
@@ -351,6 +356,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
+        assertSanctionedMutation()
         let cols = columns(in: workspaceId)
         guard !cols.isEmpty else { return false }
 
@@ -475,6 +481,7 @@ extension NiriLayoutEngine {
         gaps: CGFloat,
         allowEdgeWrap: Bool = true
     ) -> Bool {
+        assertSanctionedMutation()
         guard direction == .left || direction == .right else { return false }
 
         guard let currentColumn = findColumn(containing: window, in: workspaceId),
@@ -595,6 +602,7 @@ extension NiriLayoutEngine {
         state: inout ViewportState,
         gaps: CGFloat
     ) -> Bool {
+        assertSanctionedMutation()
         let cols = columns(in: workspaceId)
         guard let targetColumnIdx = columnIndex(of: targetColumn, in: workspaceId),
               targetColumnIdx + 1 < cols.count
@@ -669,6 +677,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
+        assertSanctionedMutation()
         guard sourceColumn.windowNodes.count > 1,
               let root = roots[workspaceId],
               let sourceColumnIdx = columnIndex(of: sourceColumn, in: workspaceId),

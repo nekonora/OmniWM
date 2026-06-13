@@ -499,6 +499,7 @@ final class WorkspaceManager {
              .scratchpadChanged,
              .selectionChanged,
              .suppressedFocusChanged,
+             .userCommand,
              .viewportChanged,
              .viewportCommitted,
              .viewportForgotten,
@@ -3092,12 +3093,35 @@ final class WorkspaceManager {
         return false
     }
 
+    @discardableResult
+    func withEngineMutationScope<T>(
+        in workspaceId: WorkspaceDescriptor.ID? = nil,
+        source: WMEventSource = .command,
+        _ body: () -> T
+    ) -> T {
+        var result: T?
+        world.commit(
+            .userCommand(workspaceId: workspaceId, source: source),
+            monitors: monitors,
+            snapshot: { self.reconcileSnapshot() },
+            preMutate: { result = body() },
+            resolvePlan: { plan, _ in plan }
+        )
+        return result!
+    }
+
+    func withEngineBuildScope<T>(_ body: () -> T) -> T {
+        world.withEngineBuildScope(body)
+    }
+
     func withNiriViewportState(
         for workspaceId: WorkspaceDescriptor.ID,
         _ mutate: (inout ViewportState) -> Void
     ) {
         var state = niriViewportState(for: workspaceId)
-        mutate(&state)
+        withEngineMutationScope(in: workspaceId) {
+            mutate(&state)
+        }
         updateNiriViewportState(state, for: workspaceId)
     }
 
@@ -3846,6 +3870,7 @@ final class WorkspaceManager {
              .scratchpadChanged,
              .selectionChanged,
              .suppressedFocusChanged,
+             .userCommand,
              .viewportChanged,
              .viewportCommitted,
              .viewportForgotten,

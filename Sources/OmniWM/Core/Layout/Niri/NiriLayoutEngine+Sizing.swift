@@ -288,6 +288,7 @@ extension NiriLayoutEngine {
         motion: MotionSnapshot,
         state: inout ViewportState
     ) {
+        assertSanctionedMutation()
         let newMode: SizingMode = window.sizingMode == .fullscreen ? .normal : .fullscreen
         setWindowSizingMode(window, motion: motion, mode: newMode, state: &state)
     }
@@ -302,6 +303,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) {
+        assertSanctionedMutation()
         guard !presetColumnWidths.isEmpty else { return }
 
         let previousWidth = cachedWidthForResizeStart(
@@ -396,6 +398,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) {
+        assertSanctionedMutation()
         guard let column = findColumn(containing: window, in: workspaceId) else { return }
         toggleColumnWidth(
             column,
@@ -418,6 +421,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) {
+        assertSanctionedMutation()
         let previousWidth = cachedWidthForResizeStart(
             column,
             in: workspaceId,
@@ -462,6 +466,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) {
+        assertSanctionedMutation()
         guard let column = findColumn(containing: window, in: workspaceId) else { return }
         setColumnWidth(
             column,
@@ -482,6 +487,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) {
+        assertSanctionedMutation()
         let workingAreaWidth = workingFrame.width
         let previousWidth = cachedWidthForResizeStart(
             column,
@@ -542,6 +548,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) {
+        assertSanctionedMutation()
         guard !column.isFullWidth else { return }
         guard column.windowNodes.allSatisfy({ $0.sizingMode == .normal }) else { return }
 
@@ -689,6 +696,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) {
+        assertSanctionedMutation()
         guard let column = findColumn(containing: window, in: workspaceId) else { return }
         cancelInteractiveResize(for: column, in: workspaceId)
 
@@ -736,6 +744,7 @@ extension NiriLayoutEngine {
         _ window: NiriWindow,
         in workspaceId: WorkspaceDescriptor.ID
     ) {
+        assertSanctionedMutation()
         guard let column = findColumn(containing: window, in: workspaceId) else { return }
         cancelInteractiveResize(for: column, in: workspaceId)
 
@@ -757,6 +766,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) {
+        assertSanctionedMutation()
         guard !presetWindowHeights.isEmpty else { return }
         guard let column = findColumn(containing: window, in: workspaceId) else { return }
         cancelInteractiveResize(for: column, in: workspaceId)

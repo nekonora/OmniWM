@@ -13,6 +13,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
+        assertSanctionedMutation()
         guard interactiveMove == nil else { return false }
         guard interactiveResize == nil else { return false }
 
@@ -89,6 +90,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
+        assertSanctionedMutation()
         guard let move = interactiveMove else { return false }
         defer { interactiveMove = nil }
 
@@ -246,6 +248,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
+        assertSanctionedMutation()
         guard let sourceWindow = findNode(by: sourceWindowId) as? NiriWindow,
               let targetWindow = findNode(by: targetWindowId) as? NiriWindow
         else {

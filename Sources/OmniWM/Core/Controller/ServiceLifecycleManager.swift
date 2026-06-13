@@ -151,8 +151,10 @@ final class ServiceLifecycleManager {
             migrateAnimations: false
         )
 
-        controller.niriEngine?.cleanupRemovedMonitor(monitorId)
-        controller.dwindleEngine?.cleanupRemovedMonitor(monitorId)
+        controller.workspaceManager.withEngineMutationScope {
+            controller.niriEngine?.cleanupRemovedMonitor(monitorId)
+            controller.dwindleEngine?.cleanupRemovedMonitor(monitorId)
+        }
     }
 
     private func handleMonitorConfigurationChanged() {

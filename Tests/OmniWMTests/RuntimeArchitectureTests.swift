@@ -2903,6 +2903,10 @@ final class RuntimeArchitectureTests: XCTestCase {
         columnWidth: CGFloat,
         tabbedColumnIndex: Int
     ) {
+        let wasSanctioned = engine.isMutationSanctioned
+        engine.isMutationSanctioned = true
+        defer { engine.isMutationSanctioned = wasSanctioned }
+
         var previousNode: NiriWindow?
         for token in tokens {
             previousNode = engine.addWindow(

@@ -9,6 +9,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
+        assertSanctionedMutation()
         let columns = columns(in: workspaceId)
         guard !columns.isEmpty else { return false }
 
@@ -44,6 +45,7 @@ extension NiriLayoutEngine {
         workingFrame: CGRect,
         gaps: CGFloat
     ) -> Bool {
+        assertSanctionedMutation()
         let columns = columns(in: workspaceId)
         guard !columns.isEmpty else { return false }
 

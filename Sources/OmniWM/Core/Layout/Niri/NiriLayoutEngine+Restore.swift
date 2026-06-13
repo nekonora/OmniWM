@@ -43,6 +43,7 @@ extension NiriLayoutEngine {
         matching tokens: [WindowToken],
         in workspaceId: WorkspaceDescriptor.ID
     ) -> Bool {
+        assertSanctionedMutation()
         guard !placements.isEmpty, !tokens.isEmpty else { return false }
 
         let root = ensureRoot(for: workspaceId)

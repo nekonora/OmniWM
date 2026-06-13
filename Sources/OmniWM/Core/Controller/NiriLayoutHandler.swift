@@ -390,6 +390,16 @@ enum NiriWindowMoveResult {
         engine: NiriLayoutEngine,
         monitor: Monitor
     ) -> WorkspaceLayoutPlan {
+        let build = { self.buildRelayoutPlanBody(snapshot: snapshot, engine: engine, monitor: monitor) }
+        guard let workspaceManager = controller?.workspaceManager else { return build() }
+        return workspaceManager.withEngineBuildScope(build)
+    }
+
+    private func buildRelayoutPlanBody(
+        snapshot: NiriWorkspaceSnapshot,
+        engine: NiriLayoutEngine,
+        monitor: Monitor
+    ) -> WorkspaceLayoutPlan {
         let motion = controller?.motionPolicy.snapshot() ?? .enabled
         var state = snapshot.viewportState
         let pass = NiriLayoutPass(
@@ -1116,23 +1126,27 @@ enum NiriWindowMoveResult {
         }
 
         let activeTileChanged = column.activeTileIdx != storageIndex
-        column.setActiveTileIdx(storageIndex)
-        engine.updateTabbedColumnVisibility(column: column)
+        controller.workspaceManager.withEngineMutationScope {
+            column.setActiveTileIdx(storageIndex)
+            engine.updateTabbedColumnVisibility(column: column)
+        }
         if activeTileChanged {
             recordLayoutOperation(.tabActivated(token: target.token), in: workspaceId, source: .mouse)
         }
 
         var state = controller.workspaceManager.niriViewportState(for: workspaceId)
-        if let monitor = controller.workspaceManager.monitor(for: workspaceId) {
-            let gap = CGFloat(controller.workspaceManager.gaps)
-            engine.ensureSelectionVisible(
-                node: target,
-                in: workspaceId,
-                motion: controller.motionPolicy.snapshot(),
-                state: &state,
-                workingFrame: monitor.visibleFrame,
-                gaps: gap
-            )
+        controller.workspaceManager.withEngineMutationScope {
+            if let monitor = controller.workspaceManager.monitor(for: workspaceId) {
+                let gap = CGFloat(controller.workspaceManager.gaps)
+                engine.ensureSelectionVisible(
+                    node: target,
+                    in: workspaceId,
+                    motion: controller.motionPolicy.snapshot(),
+                    state: &state,
+                    workingFrame: monitor.visibleFrame,
+                    gaps: gap
+                )
+            }
         }
         activateNode(
             target, in: workspaceId, state: &state,
@@ -1204,19 +1218,22 @@ enum NiriWindowMoveResult {
         let gap = CGFloat(controller.workspaceManager.gaps)
         let workingFrame = controller.insetWorkingFrame(for: monitor)
 
-        for col in engine.columns(in: wsId) where col.cachedWidth <= 0 {
-            col.resolveAndCacheWidth(workingAreaWidth: workingFrame.width, gaps: gap)
-        }
+        let newNode = controller.workspaceManager.withEngineMutationScope { () -> NiriNode? in
+            for col in engine.columns(in: wsId) where col.cachedWidth <= 0 {
+                col.resolveAndCacheWidth(workingAreaWidth: workingFrame.width, gaps: gap)
+            }
 
-        if let newNode = engine.focusTarget(
-            direction: direction,
-            currentSelection: currentNode,
-            in: wsId,
-            motion: controller.motionPolicy.snapshot(),
-            state: &state,
-            workingFrame: workingFrame,
-            gaps: gap
-        ) {
+            return engine.focusTarget(
+                direction: direction,
+                currentSelection: currentNode,
+                in: wsId,
+                motion: controller.motionPolicy.snapshot(),
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gap
+            )
+        }
+        if let newNode {
             activateNode(
                 newNode, in: wsId, state: &state,
                 options: .init(
@@ -1507,14 +1524,15 @@ enum NiriWindowMoveResult {
         for monitor in currentMonitors {
             orientations[monitor.id] = controller.settings.effectiveOrientation(for: monitor)
         }
-        engine.updateMonitors(currentMonitors, orientations: orientations)
-
         let workspaceAssignments: [(workspaceId: WorkspaceDescriptor.ID, monitor: Monitor)] =
             controller.workspaceManager.workspaces.compactMap { workspace in
                 guard let monitor = controller.workspaceManager.monitor(for: workspace.id) else { return nil }
                 return (workspaceId: workspace.id, monitor: monitor)
             }
-        engine.syncWorkspaceAssignments(workspaceAssignments, orientations: orientations)
+        controller.workspaceManager.withEngineMutationScope {
+            engine.updateMonitors(currentMonitors, orientations: orientations)
+            engine.syncWorkspaceAssignments(workspaceAssignments, orientations: orientations)
+        }
 
         refreshResolvedMonitorSettings()
     }
@@ -1522,9 +1540,11 @@ enum NiriWindowMoveResult {
     func refreshResolvedMonitorSettings() {
         guard let controller, let engine = controller.niriEngine else { return }
 
-        for monitor in controller.workspaceManager.monitors {
-            let resolved = controller.settings.resolvedNiriSettings(for: monitor)
-            engine.updateMonitorSettings(resolved, for: monitor.id)
+        controller.workspaceManager.withEngineMutationScope {
+            for monitor in controller.workspaceManager.monitors {
+                let resolved = controller.settings.resolvedNiriSettings(for: monitor)
+                engine.updateMonitorSettings(resolved, for: monitor.id)
+            }
         }
     }
 
@@ -1538,15 +1558,17 @@ enum NiriWindowMoveResult {
         defaultColumnWidth: Double?? = nil
     ) {
         guard let controller else { return }
-        controller.niriEngine?.updateConfiguration(
-            maxVisibleColumns: maxVisibleColumns,
-            infiniteLoop: infiniteLoop,
-            centerFocusedColumn: centerFocusedColumn,
-            alwaysCenterSingleColumn: alwaysCenterSingleColumn,
-            singleWindowAspectRatio: singleWindowAspectRatio,
-            presetColumnWidths: columnWidthPresets?.map { .proportion($0) },
-            defaultColumnWidth: defaultColumnWidth.map { $0.map { CGFloat($0) } }
-        )
+        controller.workspaceManager.withEngineMutationScope {
+            controller.niriEngine?.updateConfiguration(
+                maxVisibleColumns: maxVisibleColumns,
+                infiniteLoop: infiniteLoop,
+                centerFocusedColumn: centerFocusedColumn,
+                alwaysCenterSingleColumn: alwaysCenterSingleColumn,
+                singleWindowAspectRatio: singleWindowAspectRatio,
+                presetColumnWidths: columnWidthPresets?.map { .proportion($0) },
+                defaultColumnWidth: defaultColumnWidth.map { $0.map { CGFloat($0) } }
+            )
+        }
         refreshResolvedMonitorSettings()
         controller.layoutRefreshController.requestRelayout(reason: .layoutConfigChanged)
     }
@@ -1562,25 +1584,27 @@ enum NiriWindowMoveResult {
         guard let controller, let engine = controller.niriEngine else { return }
 
         state.selectedNodeId = node.id
-        if !options.ensureVisible, !options.preserveViewportAnchor {
-            rebaseViewportAnchor(to: node, in: workspaceId, state: &state)
-        }
+        controller.workspaceManager.withEngineMutationScope {
+            if !options.ensureVisible, !options.preserveViewportAnchor {
+                rebaseViewportAnchor(to: node, in: workspaceId, state: &state)
+            }
 
-        if options.activateWindow {
-            engine.activateWindow(node.id)
-        }
+            if options.activateWindow {
+                engine.activateWindow(node.id)
+            }
 
-        if options.ensureVisible, let monitor = controller.workspaceManager.monitor(for: workspaceId) {
-            let gap = CGFloat(controller.workspaceManager.gaps)
-            let workingFrame = controller.insetWorkingFrame(for: monitor)
-            engine.ensureSelectionVisible(
-                node: node,
-                in: workspaceId,
-                motion: controller.motionPolicy.snapshot(),
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gap
-            )
+            if options.ensureVisible, let monitor = controller.workspaceManager.monitor(for: workspaceId) {
+                let gap = CGFloat(controller.workspaceManager.gaps)
+                let workingFrame = controller.insetWorkingFrame(for: monitor)
+                engine.ensureSelectionVisible(
+                    node: node,
+                    in: workspaceId,
+                    motion: controller.motionPolicy.snapshot(),
+                    state: &state,
+                    workingFrame: workingFrame,
+                    gaps: gap
+                )
+            }
         }
 
         let focusedToken = (node as? NiriWindow)?.token
@@ -1591,8 +1615,8 @@ enum NiriWindowMoveResult {
             onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
         )
 
-        if let windowNode = node as? NiriWindow {
-            if options.updateTimestamp {
+        if options.updateTimestamp, let windowNode = node as? NiriWindow {
+            controller.workspaceManager.withEngineMutationScope {
                 engine.updateFocusTimestamp(for: windowNode.id)
             }
         }
