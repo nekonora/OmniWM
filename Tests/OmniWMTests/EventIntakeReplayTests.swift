@@ -41,6 +41,32 @@ final class EventIntakeReplayTests: XCTestCase {
     }
 
     @MainActor
+    func testWindowConstraintsResolvedDrainsInOrderWithoutCoalescing() {
+        let intake = EventIntake()
+        let sink = RecordingSink()
+        intake.open(sink: sink)
+        defer { intake.close() }
+
+        let fact = WindowConstraintsFact(
+            token: WindowToken(pid: 42, windowId: 7),
+            constraints: .fixed(size: CGSize(width: 320, height: 240))
+        )
+        intake.enqueue(.appActivated(pid: 42))
+        intake.enqueue(.windowConstraintsResolved(fact))
+        intake.enqueue(.windowConstraintsResolved(fact))
+        intake.drainNow()
+
+        let resolvedTokens = sink.received.compactMap { stamped -> WindowToken? in
+            if case let .windowConstraintsResolved(resolved) = stamped.event {
+                return resolved.token
+            }
+            return nil
+        }
+        XCTAssertEqual(resolvedTokens, [fact.token, fact.token])
+        XCTAssertEqual(sink.received.count, 3)
+    }
+
+    @MainActor
     func testCGSFrameEventsCoalescePerWindowAndClearOnDestroy() {
         let intake = EventIntake()
         let sink = RecordingSink()

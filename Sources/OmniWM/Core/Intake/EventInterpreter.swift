@@ -89,6 +89,9 @@ final class EventInterpreter: EventIntakeSink {
             _ = controller.workspaceManager.recordReconcileEvent(.systemWake(source: .service))
             controller.workspaceBarManager.cleanup()
             controller.layoutRefreshController.requestFullRescan(reason: .unlock)
+
+        case let .windowConstraintsResolved(fact):
+            controller.layoutRefreshController.applyResolvedConstraints(fact)
         }
     }
 }

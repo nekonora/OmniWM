@@ -632,6 +632,20 @@ import QuartzCore
         return true
     }
 
+    func applyResolvedConstraints(_ fact: WindowConstraintsFact) {
+        guard let controller,
+              let workspaceId = controller.workspaceManager.workspace(for: fact.token)
+        else { return }
+        let previous = controller.workspaceManager.cachedConstraints(
+            for: fact.token,
+            maxAge: .greatestFiniteMagnitude
+        )
+        controller.workspaceManager.setCachedConstraints(fact.constraints, for: fact.token)
+        if previous != fact.constraints {
+            requestRelayout(reason: .observedConstraintsChanged, affectedWorkspaceIds: [workspaceId])
+        }
+    }
+
     func buildWindowSnapshots(
         for entries: [WindowState],
         resolveConstraints: Bool = true,
@@ -647,15 +661,14 @@ import QuartzCore
             let constraints: WindowSizeConstraints
             if !resolveConstraints || layoutReason == .nativeFullscreen {
                 constraints = controller.workspaceManager.cachedConstraints(for: entry.token) ?? .unconstrained
+            } else if let cached = controller.workspaceManager.cachedConstraints(for: entry.token) {
+                constraints = cached
             } else {
-                let currentSize = fastFrame(for: entry.token, axRef: entry.axRef)?.size
-                if let cached = controller.workspaceManager.cachedConstraints(for: entry.token) {
-                    constraints = cached
-                } else {
-                    let resolved = AXWindowService.sizeConstraints(entry.axRef, currentSize: currentSize)
-                    controller.workspaceManager.setCachedConstraints(resolved, for: entry.token)
-                    constraints = resolved
-                }
+                controller.factResolver.resolveWindowConstraints(token: entry.token, axRef: entry.axRef)
+                constraints = controller.workspaceManager.cachedConstraints(
+                    for: entry.token,
+                    maxAge: .greatestFiniteMagnitude
+                ) ?? .unconstrained
             }
 
             var mergedConstraints = constraints

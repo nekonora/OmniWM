@@ -24,6 +24,7 @@ enum IntakeEvent: Sendable {
     case mouseScroll(MouseScrollIntake)
     case systemSleep
     case systemWake
+    case windowConstraintsResolved(WindowConstraintsFact)
 }
 
 struct IPCCommandIntake: Sendable {

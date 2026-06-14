@@ -14,12 +14,18 @@ struct ActivationFacts: Sendable {
     let focusedWindow: FocusedWindowFact?
 }
 
+struct WindowConstraintsFact: Sendable {
+    let token: WindowToken
+    let constraints: WindowSizeConstraints
+}
+
 @MainActor
 final class FactResolver {
     var factProvider: ((pid_t) -> FocusedWindowFact?)?
 
     private var resolverThread: Thread?
     private var inFlightActivationPids: Set<pid_t> = []
+    private var inFlightConstraintTokens: Set<WindowToken> = []
 
     func resolveActivationFacts(
         pid: pid_t,
@@ -61,6 +67,21 @@ final class FactResolver {
                         focusedWindow: focusedWindow
                     )
                 )
+            )
+        }
+    }
+
+    func resolveWindowConstraints(token: WindowToken, axRef: AXWindowRef) {
+        guard inFlightConstraintTokens.insert(token).inserted else { return }
+        nonisolated(unsafe) let thread = AppAXContext.contexts[token.pid]?.axThread ?? sharedResolverThread()
+        Task { @MainActor in
+            let constraints = try? await thread.runInLoop { _ in
+                AXWindowService.sizeConstraints(axRef)
+            }
+            inFlightConstraintTokens.remove(token)
+            guard let constraints else { return }
+            EventIntake.post(
+                .windowConstraintsResolved(WindowConstraintsFact(token: token, constraints: constraints))
             )
         }
     }
