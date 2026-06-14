@@ -697,6 +697,77 @@ final class RuntimeArchitectureTests: XCTestCase {
         XCTAssertEqual(matchingPlan.focusSession?.pendingManagedFocus, .empty)
     }
 
+    func testWorkspaceReassignClearsStalePendingManagedFocus() {
+        let token = WindowToken(pid: 100, windowId: 42)
+        let workspaceA = WorkspaceDescriptor.ID()
+        let workspaceB = WorkspaceDescriptor.ID()
+        let snapshot = Self.snapshot(
+            pendingManagedFocus: PendingManagedFocusSnapshot(
+                token: token,
+                workspaceId: workspaceA,
+                monitorId: nil,
+                requestId: 7
+            )
+        )
+
+        let movedPlan = StateReducer.reduce(
+            event: .workspaceAssigned(
+                token: token,
+                from: workspaceA,
+                to: workspaceB,
+                monitorId: nil,
+                source: .workspaceManager
+            ),
+            existingEntry: nil,
+            currentSnapshot: snapshot,
+            monitors: []
+        )
+        XCTAssertEqual(movedPlan.focusSession?.pendingManagedFocus, .empty)
+
+        let sameWorkspacePlan = StateReducer.reduce(
+            event: .workspaceAssigned(
+                token: token,
+                from: workspaceA,
+                to: workspaceA,
+                monitorId: nil,
+                source: .workspaceManager
+            ),
+            existingEntry: nil,
+            currentSnapshot: snapshot,
+            monitors: []
+        )
+        XCTAssertNil(sameWorkspacePlan.focusSession)
+    }
+
+    func testWorkspaceReassignLeavesUnrelatedTokenPendingFocus() {
+        let token = WindowToken(pid: 100, windowId: 42)
+        let workspaceA = WorkspaceDescriptor.ID()
+        let workspaceB = WorkspaceDescriptor.ID()
+        let snapshot = Self.snapshot(
+            pendingManagedFocus: PendingManagedFocusSnapshot(
+                token: token,
+                workspaceId: workspaceA,
+                monitorId: nil,
+                requestId: 7
+            )
+        )
+
+        let otherToken = WindowToken(pid: 200, windowId: 7)
+        let otherPlan = StateReducer.reduce(
+            event: .workspaceAssigned(
+                token: otherToken,
+                from: workspaceA,
+                to: workspaceB,
+                monitorId: nil,
+                source: .workspaceManager
+            ),
+            existingEntry: nil,
+            currentSnapshot: snapshot,
+            monitors: []
+        )
+        XCTAssertNil(otherPlan.focusSession)
+    }
+
     func testManagedFocusConfirmRequiresMatchingRequest() {
         let workspaceId = WorkspaceDescriptor.ID()
         let token = WindowToken(pid: 100, windowId: 42)

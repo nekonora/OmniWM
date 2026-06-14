@@ -58,7 +58,7 @@ enum StateReducer {
                 workspaceId: workspaceId
             )
 
-        case let .workspaceAssigned(_, _, workspaceId, monitorId, _):
+        case let .workspaceAssigned(token, _, workspaceId, monitorId, _):
             plan.observedState = baseObservedState(
                 from: existingEntry,
                 workspaceId: workspaceId,
@@ -70,6 +70,13 @@ enum StateReducer {
                 monitorId: monitorId,
                 mode: existingEntry?.mode ?? .tiling
             )
+            if let focusSession = reassigningFocusState(
+                from: currentSnapshot.focusSession,
+                token: token,
+                workspaceId: workspaceId
+            ) {
+                plan.focusSession = focusSession
+            }
 
         case let .windowModeChanged(token, workspaceId, monitorId, mode, _):
             plan.lifecyclePhase = lifecyclePhase(for: mode)
@@ -568,6 +575,22 @@ enum StateReducer {
             focusSession.pendingManagedFocus = .empty
         }
         focusSession.clearRememberedFocus(token, workspaceId: workspaceId)
+        return focusSession
+    }
+
+    private static func reassigningFocusState(
+        from focusSession: FocusSessionSnapshot,
+        token: WindowToken,
+        workspaceId: WorkspaceDescriptor.ID
+    ) -> FocusSessionSnapshot? {
+        guard focusSession.pendingManagedFocus.token == token,
+              let pendingWorkspaceId = focusSession.pendingManagedFocus.workspaceId,
+              pendingWorkspaceId != workspaceId
+        else {
+            return nil
+        }
+        var focusSession = focusSession
+        focusSession.clearPendingManagedFocus()
         return focusSession
     }
 }
