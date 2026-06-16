@@ -82,8 +82,6 @@ final class MouseEventHandler {
 
         var eventTap: CFMachPort?
         var runLoopSource: CFRunLoopSource?
-        var gestureTap: CFMachPort?
-        var gestureRunLoopSource: CFRunLoopSource?
         var currentHoveredEdges: ResizeEdge = []
         var isResizing: Bool = false
         var isMoving: Bool = false
@@ -109,6 +107,7 @@ final class MouseEventHandler {
 
     weak var controller: WMController?
     var state = State()
+    private var multitouchSource: MultitouchGestureSource?
     var pressedMouseButtonsProvider: @MainActor () -> Int = { Int(NSEvent.pressedMouseButtons) }
 
     init(controller: WMController) {
@@ -158,37 +157,12 @@ final class MouseEventHandler {
             CGEvent.tapEnable(tap: tap, enable: true)
         }
 
-        let gestureMask: CGEventMask = UInt64(NSEvent.EventTypeMask.gesture.rawValue)
-
-        let gestureCallback: CGEventTapCallBack = { _, type, event, _ in
-            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                if let tap = MouseEventHandler._instance?.state.gestureTap {
-                    CGEvent.tapEnable(tap: tap, enable: true)
-                }
-                return Unmanaged.passUnretained(event)
-            }
-
-            _ = MouseEventHandler.processGestureTapCallback(type: type, event: event)
-
-            return Unmanaged.passUnretained(event)
+        let source = MultitouchGestureSource()
+        source.onSnapshot = { [weak self] snapshot in
+            self?.receiveTapGestureEvent(snapshot)
         }
-
-        state.gestureTap = CGEvent.tapCreate(
-            tap: .cghidEventTap,
-            place: .headInsertEventTap,
-            options: .listenOnly,
-            eventsOfInterest: gestureMask,
-            callback: gestureCallback,
-            userInfo: nil
-        )
-
-        if let tap = state.gestureTap {
-            state.gestureRunLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-            if let source = state.gestureRunLoopSource {
-                CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-            }
-            CGEvent.tapEnable(tap: tap, enable: true)
-        }
+        source.start()
+        multitouchSource = source
     }
 
     func cleanup() {
@@ -200,20 +174,23 @@ final class MouseEventHandler {
             CGEvent.tapEnable(tap: tap, enable: false)
             state.eventTap = nil
         }
-        if let source = state.gestureRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-            state.gestureRunLoopSource = nil
-        }
-        if let tap = state.gestureTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-            state.gestureTap = nil
-        }
+        multitouchSource?.stop()
+        multitouchSource = nil
         MouseEventHandler._instance = nil
         state.currentHoveredEdges = []
         state.isResizing = false
         state.activeInteractionButton = nil
         controller?.eventIntake.removePendingMouseEvents()
         resetGestureState()
+    }
+
+    func restartMultitouch() {
+        abortActiveGestureIfNeeded()
+        multitouchSource?.restart()
+    }
+
+    func stopMultitouch() {
+        multitouchSource?.stop()
     }
 
     func dispatchMouseMoved(at location: CGPoint) {
@@ -272,29 +249,6 @@ final class MouseEventHandler {
             momentumPhase: momentumPhase,
             phase: phase,
             modifiers: modifiers
-        )
-    }
-
-    func dispatchGestureEvent(from cgEvent: CGEvent) {
-        guard !isInputSuppressed else { return }
-        guard let snapshot = Self.makeGestureEventSnapshot(from: cgEvent) else { return }
-        handleGestureEvent(snapshot)
-    }
-
-    func dispatchGestureEvent(_ event: NSEvent, at location: CGPoint) {
-        guard !isInputSuppressed else { return }
-        handleGestureEvent(
-            GestureEventSnapshot(
-                location: location,
-                phaseRawValue: event.phase.rawValue,
-                timestamp: event.timestamp,
-                touches: event.allTouches().map { touch in
-                    GestureTouchSample(
-                        phase: touch.phase,
-                        normalizedPosition: Self.sanitizedGestureTouchPosition(touch.normalizedPosition)
-                    )
-                }
-            )
         )
     }
 
@@ -404,32 +358,26 @@ final class MouseEventHandler {
         return resolveScrollContext(at: location) != nil
     }
 
-    func receiveTapGestureEvent(from cgEvent: CGEvent) {
-        guard !isInputSuppressed else {
-            handleInputSuppressionBegan()
-            return
-        }
-        let location = ScreenCoordinateSpace.toAppKit(point: cgEvent.location)
-        if shouldBlockOwnWindowInput(at: location) {
-            dropPendingTapEvents()
-        } else {
-            flushQueuedTapEventsBeforeImmediateDispatch()
-        }
-        guard let snapshot = Self.makeGestureEventSnapshot(from: cgEvent) else { return }
-        handleGestureEvent(snapshot)
-    }
-
     func receiveTapGestureEvent(_ snapshot: GestureEventSnapshot) {
         guard !isInputSuppressed else {
             handleInputSuppressionBegan()
             return
         }
+        guard shouldProcessGestureFrame(snapshot) else { return }
         if shouldBlockOwnWindowInput(at: snapshot.location) {
             dropPendingTapEvents()
         } else {
             flushQueuedTapEventsBeforeImmediateDispatch()
         }
         handleGestureEvent(snapshot)
+    }
+
+    private func shouldProcessGestureFrame(_ snapshot: GestureEventSnapshot) -> Bool {
+        guard state.gesturePhase == .idle else { return true }
+        let activeTouchCount = snapshot.touches.filter { $0.phase != .ended && $0.phase != .cancelled }.count
+        guard activeTouchCount > 0 else { return true }
+        guard let requiredFingers = controller?.settings.gestureFingerCount.rawValue else { return false }
+        return activeTouchCount == requiredFingers
     }
 
     private var isInputSuppressed: Bool {
@@ -1518,22 +1466,6 @@ final class MouseEventHandler {
         return MouseWheelColumnDelta(axis: .vertical, value: deltaY)
     }
 
-    private nonisolated static func processGestureTapCallback(
-        type: CGEventType,
-        event: CGEvent,
-        isMainThread: Bool = Thread.isMainThread
-    ) -> Bool {
-        guard type.rawValue == NSEvent.EventType.gesture.rawValue else { return false }
-        guard isMainThread else { return false }
-        guard let snapshot = makeGestureEventSnapshot(from: event) else { return true }
-
-        MainActor.assumeIsolated {
-            MouseEventHandler._instance?.receiveTapGestureEvent(snapshot)
-        }
-
-        return true
-    }
-
     static func averageGestureTouchPosition(
         requiredFingers: Int,
         touches: [GestureTouchSample]
@@ -1572,23 +1504,4 @@ final class MouseEventHandler {
         )
     }
 
-    private nonisolated static func sanitizedGestureTouchPosition(_ position: CGPoint) -> CGPoint? {
-        guard position.x.isFinite, position.y.isFinite else { return nil }
-        return position
-    }
-
-    private nonisolated static func makeGestureEventSnapshot(from cgEvent: CGEvent) -> GestureEventSnapshot? {
-        guard let nsEvent = NSEvent(cgEvent: cgEvent) else { return nil }
-        return GestureEventSnapshot(
-            location: ScreenCoordinateSpace.toAppKit(point: cgEvent.location),
-            phaseRawValue: nsEvent.phase.rawValue,
-            timestamp: nsEvent.timestamp,
-            touches: nsEvent.allTouches().map { touch in
-                GestureTouchSample(
-                    phase: touch.phase,
-                    normalizedPosition: sanitizedGestureTouchPosition(touch.normalizedPosition)
-                )
-            }
-        )
-    }
 }

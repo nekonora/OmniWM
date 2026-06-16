@@ -84,11 +84,13 @@ final class EventInterpreter: EventIntakeSink {
 
         case .systemSleep:
             _ = controller.workspaceManager.recordReconcileEvent(.systemSleep(source: .service))
+            controller.mouseEventHandler.stopMultitouch()
 
         case .systemWake:
             _ = controller.workspaceManager.recordReconcileEvent(.systemWake(source: .service))
             controller.workspaceBarManager.cleanup()
             controller.layoutRefreshController.requestFullRescan(reason: .unlock)
+            controller.mouseEventHandler.restartMultitouch()
 
         case let .windowConstraintsResolved(fact):
             controller.layoutRefreshController.applyResolvedConstraints(fact)
