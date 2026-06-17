@@ -264,6 +264,10 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var monitorGapSettings = SettingsStore.defaultExport.monitorGapSettings {
+        didSet { scheduleSave() }
+    }
+
     var preventSleepEnabled = SettingsStore.defaultExport.preventSleepEnabled {
         didSet { scheduleSave() }
     }
@@ -559,6 +563,7 @@ final class SettingsStore {
             dwindleUseGlobalGaps: dwindleUseGlobalGaps,
             dwindleMoveToRootStable: dwindleMoveToRootStable,
             monitorDwindleSettings: monitorDwindleSettings,
+            monitorGapSettings: monitorGapSettings,
             preventSleepEnabled: preventSleepEnabled,
             updateChecksEnabled: updateChecksEnabled,
             ipcEnabled: ipcEnabled,
@@ -670,6 +675,10 @@ final class SettingsStore {
         dwindleMoveToRootStable = export.dwindleMoveToRootStable
         monitorDwindleSettings = SettingsStore.reboundMonitorSettings(
             export.monitorDwindleSettings,
+            monitors: monitors
+        )
+        monitorGapSettings = SettingsStore.reboundMonitorSettings(
+            export.monitorGapSettings,
             monitors: monitors
         )
 
@@ -1053,12 +1062,37 @@ final class SettingsStore {
             splitWidthMultiplier: CGFloat(override?.splitWidthMultiplier ?? dwindleSplitWidthMultiplier),
             singleWindowAspectRatio: override?.singleWindowAspectRatio ?? dwindleSingleWindowAspectRatio,
             useGlobalGaps: useGlobalGaps,
-            innerGap: useGlobalGaps ? CGFloat(gapSize) : CGFloat(override?.innerGap ?? gapSize),
-            outerGapTop: useGlobalGaps ? CGFloat(outerGapTop) : CGFloat(override?.outerGapTop ?? outerGapTop),
-            outerGapBottom: useGlobalGaps ? CGFloat(outerGapBottom) :
-                CGFloat(override?.outerGapBottom ?? outerGapBottom),
-            outerGapLeft: useGlobalGaps ? CGFloat(outerGapLeft) : CGFloat(override?.outerGapLeft ?? outerGapLeft),
-            outerGapRight: useGlobalGaps ? CGFloat(outerGapRight) : CGFloat(override?.outerGapRight ?? outerGapRight)
+            innerGap: useGlobalGaps ? CGFloat(gapSize) : CGFloat(override?.innerGap ?? gapSize)
+        )
+    }
+
+    func gapSettings(for monitor: Monitor) -> MonitorGapSettings? {
+        MonitorSettingsStore.get(for: monitor, in: monitorGapSettings)
+    }
+
+    func gapSettings(for monitorName: String) -> MonitorGapSettings? {
+        MonitorSettingsStore.get(for: monitorName, in: monitorGapSettings)
+    }
+
+    func updateGapSettings(_ settings: MonitorGapSettings) {
+        MonitorSettingsStore.update(settings, in: &monitorGapSettings)
+    }
+
+    func removeGapSettings(for monitor: Monitor) {
+        MonitorSettingsStore.remove(for: monitor, from: &monitorGapSettings)
+    }
+
+    func removeGapSettings(for monitorName: String) {
+        MonitorSettingsStore.remove(for: monitorName, from: &monitorGapSettings)
+    }
+
+    func resolvedGapSettings(for monitor: Monitor) -> ResolvedGapSettings {
+        let override = gapSettings(for: monitor)
+        return ResolvedGapSettings(
+            outerGapLeft: CGFloat(override?.outerGapLeft ?? outerGapLeft),
+            outerGapRight: CGFloat(override?.outerGapRight ?? outerGapRight),
+            outerGapTop: CGFloat(override?.outerGapTop ?? outerGapTop),
+            outerGapBottom: CGFloat(override?.outerGapBottom ?? outerGapBottom)
         )
     }
 

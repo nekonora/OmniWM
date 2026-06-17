@@ -407,6 +407,7 @@ final class IPCQueryRouter {
         fields: Set<String>?
     ) -> IPCDisplayQuerySnapshot {
         let activeWorkspace = controller.workspaceManager.activeWorkspace(on: monitor.id)
+        let gaps = controller.settings.resolvedGapSettings(for: monitor)
         return IPCDisplayQuerySnapshot(
             id: include("id", in: fields) ? monitorIdentifier(monitor.id) : nil,
             name: include("name", in: fields) ? monitor.name : nil,
@@ -417,6 +418,10 @@ final class IPCQueryRouter {
             hasNotch: include("has-notch", in: fields) ? monitor.hasNotch : nil,
             orientation: include("orientation", in: fields)
                 ? ipcDisplayOrientation(from: controller.settings.effectiveOrientation(for: monitor)) : nil,
+            outerGapLeft: include("outer-gap-left", in: fields) ? Double(gaps.outerGapLeft) : nil,
+            outerGapRight: include("outer-gap-right", in: fields) ? Double(gaps.outerGapRight) : nil,
+            outerGapTop: include("outer-gap-top", in: fields) ? Double(gaps.outerGapTop) : nil,
+            outerGapBottom: include("outer-gap-bottom", in: fields) ? Double(gaps.outerGapBottom) : nil,
             activeWorkspace: include("active-workspace", in: fields) ? activeWorkspace.map(workspaceRef(from:)) : nil
         )
     }

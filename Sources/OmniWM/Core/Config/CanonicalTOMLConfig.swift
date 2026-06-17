@@ -25,6 +25,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
     var monitorOrientationOverrides: [MonitorOrientationSettings]
     var monitorNiriOverrides: [MonitorNiriSettings]
     var monitorDwindleOverrides: [MonitorDwindleSettings]
+    var monitorGapOverrides: [MonitorGapSettings]
 
     struct General: Codable, Equatable {
         var hotkeysEnabled: Bool
@@ -326,6 +327,12 @@ extension CanonicalTOMLConfig {
             [MonitorDwindleSettings].self,
             forKey: .monitorDwindleOverrides,
             default: defaults.monitorDwindleOverrides,
+            recovering: recovering
+        )
+        monitorGapOverrides = try container.decode(
+            [MonitorGapSettings].self,
+            forKey: .monitorGapOverrides,
+            default: defaults.monitorGapOverrides,
             recovering: recovering
         )
     }
@@ -937,6 +944,7 @@ extension CanonicalTOMLConfig {
         monitorOrientationOverrides = export.monitorOrientationSettings
         monitorNiriOverrides = export.monitorNiriSettings
         monitorDwindleOverrides = export.monitorDwindleSettings
+        monitorGapOverrides = export.monitorGapSettings
     }
 
     func toSettingsExport() -> SettingsExport {
@@ -998,6 +1006,7 @@ extension CanonicalTOMLConfig {
             dwindleUseGlobalGaps: dwindle.useGlobalGaps,
             dwindleMoveToRootStable: dwindle.moveToRootStable,
             monitorDwindleSettings: monitorDwindleOverrides,
+            monitorGapSettings: monitorGapOverrides,
             preventSleepEnabled: general.preventSleepEnabled,
             updateChecksEnabled: general.updateChecksEnabled,
             ipcEnabled: general.ipcEnabled,

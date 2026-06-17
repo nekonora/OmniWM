@@ -2298,6 +2298,10 @@ public struct IPCDisplayQuerySnapshot: Codable, Equatable, Sendable {
     public let visibleFrame: IPCRect?
     public let hasNotch: Bool?
     public let orientation: IPCDisplayOrientation?
+    public let outerGapLeft: Double?
+    public let outerGapRight: Double?
+    public let outerGapTop: Double?
+    public let outerGapBottom: Double?
     public let activeWorkspace: IPCWorkspaceRef?
 
     public init(
@@ -2309,6 +2313,10 @@ public struct IPCDisplayQuerySnapshot: Codable, Equatable, Sendable {
         visibleFrame: IPCRect? = nil,
         hasNotch: Bool? = nil,
         orientation: IPCDisplayOrientation? = nil,
+        outerGapLeft: Double? = nil,
+        outerGapRight: Double? = nil,
+        outerGapTop: Double? = nil,
+        outerGapBottom: Double? = nil,
         activeWorkspace: IPCWorkspaceRef? = nil
     ) {
         self.id = id
@@ -2319,6 +2327,10 @@ public struct IPCDisplayQuerySnapshot: Codable, Equatable, Sendable {
         self.visibleFrame = visibleFrame
         self.hasNotch = hasNotch
         self.orientation = orientation
+        self.outerGapLeft = outerGapLeft
+        self.outerGapRight = outerGapRight
+        self.outerGapTop = outerGapTop
+        self.outerGapBottom = outerGapBottom
         self.activeWorkspace = activeWorkspace
     }
 }

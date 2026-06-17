@@ -11,10 +11,6 @@ struct DwindleSettings {
     var singleWindowAspectRatioTolerance: CGFloat = 0.1
 
     var innerGap: CGFloat = 8.0
-    var outerGapTop: CGFloat = 0
-    var outerGapBottom: CGFloat = 0
-    var outerGapLeft: CGFloat = 0
-    var outerGapRight: CGFloat = 0
 
     func clampedRatio(_ ratio: CGFloat) -> CGFloat {
         min(max(ratio, 0.1), 1.9)

@@ -305,6 +305,7 @@ final class WMController {
         updateMonitorOrientations()
         updateMonitorNiriSettings()
         updateMonitorDwindleSettings()
+        updateMonitorGapSettings()
         updateAppRules()
 
         borderSettingsChanged()
@@ -564,6 +565,10 @@ final class WMController {
         layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
     }
 
+    func updateMonitorGapSettings() {
+        layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
+    }
+
     func workspaceBarItems(
         for monitor: Monitor,
         projection options: WorkspaceBarProjectionOptions
@@ -686,22 +691,15 @@ final class WMController {
             resolved: resolved,
             isVisible: isWorkspaceBarVisible(on: monitor, resolved: resolved)
         ).reservedTopInset
-        return insetWorkingFrame(from: monitor.visibleFrame, scale: scale, reservedTopInset: reservedTopInset)
-    }
-
-    func insetWorkingFrame(from frame: CGRect, scale: CGFloat = 2.0, reservedTopInset: CGFloat = 0) -> CGRect {
-        let outer = workspaceManager.outerGaps
+        let gaps = settings.resolvedGapSettings(for: monitor)
+        let menuBarInset = max(0, monitor.frame.maxY - monitor.visibleFrame.maxY)
         let struts = Struts(
-            left: outer.left,
-            right: outer.right,
-            top: outer.top + reservedTopInset,
-            bottom: outer.bottom
+            left: gaps.outerGapLeft,
+            right: gaps.outerGapRight,
+            top: normalizedTopStrut(top: gaps.outerGapTop, menuBarInset: menuBarInset, reservedTopInset: reservedTopInset),
+            bottom: gaps.outerGapBottom
         )
-        return computeWorkingArea(
-            parentArea: frame,
-            scale: scale,
-            struts: struts
-        )
+        return computeWorkingArea(parentArea: monitor.visibleFrame, scale: scale, struts: struts)
     }
 
     func updateHotkeyBindings(_ bindings: [HotkeyBinding], force: Bool = false) {
@@ -816,22 +814,14 @@ final class WMController {
         defaultSplitRatio: CGFloat? = nil,
         splitWidthMultiplier: CGFloat? = nil,
         singleWindowAspectRatio: CGSize? = nil,
-        innerGap: CGFloat? = nil,
-        outerGapTop: CGFloat? = nil,
-        outerGapBottom: CGFloat? = nil,
-        outerGapLeft: CGFloat? = nil,
-        outerGapRight: CGFloat? = nil
+        innerGap: CGFloat? = nil
     ) {
         dwindleLayoutHandler.updateDwindleConfig(
             smartSplit: smartSplit,
             defaultSplitRatio: defaultSplitRatio,
             splitWidthMultiplier: splitWidthMultiplier,
             singleWindowAspectRatio: singleWindowAspectRatio,
-            innerGap: innerGap,
-            outerGapTop: outerGapTop,
-            outerGapBottom: outerGapBottom,
-            outerGapLeft: outerGapLeft,
-            outerGapRight: outerGapRight
+            innerGap: innerGap
         )
     }
 

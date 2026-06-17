@@ -76,6 +76,8 @@ struct SettingsExport: Equatable {
     var dwindleMoveToRootStable: Bool
     var monitorDwindleSettings: [MonitorDwindleSettings]
 
+    var monitorGapSettings: [MonitorGapSettings]
+
     var preventSleepEnabled: Bool
     var updateChecksEnabled: Bool
     var ipcEnabled: Bool
@@ -173,6 +175,7 @@ extension SettingsExport {
             dwindleUseGlobalGaps: true,
             dwindleMoveToRootStable: true,
             monitorDwindleSettings: [],
+            monitorGapSettings: [],
             preventSleepEnabled: false,
             updateChecksEnabled: true,
             ipcEnabled: false,

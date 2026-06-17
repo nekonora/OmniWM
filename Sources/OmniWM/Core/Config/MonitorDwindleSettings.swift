@@ -12,10 +12,6 @@ struct MonitorDwindleSettings: MonitorSettingsType {
     var singleWindowAspectRatio: DwindleSingleWindowAspectRatio?
     var useGlobalGaps: Bool?
     var innerGap: Double?
-    var outerGapTop: Double?
-    var outerGapBottom: Double?
-    var outerGapLeft: Double?
-    var outerGapRight: Double?
 
     init(
         id: UUID = UUID(),
@@ -26,11 +22,7 @@ struct MonitorDwindleSettings: MonitorSettingsType {
         splitWidthMultiplier: Double? = nil,
         singleWindowAspectRatio: DwindleSingleWindowAspectRatio? = nil,
         useGlobalGaps: Bool? = nil,
-        innerGap: Double? = nil,
-        outerGapTop: Double? = nil,
-        outerGapBottom: Double? = nil,
-        outerGapLeft: Double? = nil,
-        outerGapRight: Double? = nil
+        innerGap: Double? = nil
     ) {
         self.id = id
         self.monitorName = monitorName
@@ -41,16 +33,11 @@ struct MonitorDwindleSettings: MonitorSettingsType {
         self.singleWindowAspectRatio = singleWindowAspectRatio
         self.useGlobalGaps = useGlobalGaps
         self.innerGap = innerGap
-        self.outerGapTop = outerGapTop
-        self.outerGapBottom = outerGapBottom
-        self.outerGapLeft = outerGapLeft
-        self.outerGapRight = outerGapRight
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, monitorName, monitorDisplayId, smartSplit, defaultSplitRatio, splitWidthMultiplier
         case singleWindowAspectRatio, useGlobalGaps, innerGap
-        case outerGapTop, outerGapBottom, outerGapLeft, outerGapRight
     }
 
     init(from decoder: Decoder) throws {
@@ -65,10 +52,6 @@ struct MonitorDwindleSettings: MonitorSettingsType {
             .flatMap { DwindleSingleWindowAspectRatio(rawValue: $0) }
         useGlobalGaps = try container.decodeIfPresent(Bool.self, forKey: .useGlobalGaps)
         innerGap = try container.decodeIfPresent(Double.self, forKey: .innerGap)
-        outerGapTop = try container.decodeIfPresent(Double.self, forKey: .outerGapTop)
-        outerGapBottom = try container.decodeIfPresent(Double.self, forKey: .outerGapBottom)
-        outerGapLeft = try container.decodeIfPresent(Double.self, forKey: .outerGapLeft)
-        outerGapRight = try container.decodeIfPresent(Double.self, forKey: .outerGapRight)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -82,10 +65,6 @@ struct MonitorDwindleSettings: MonitorSettingsType {
         try container.encodeIfPresent(singleWindowAspectRatio?.rawValue, forKey: .singleWindowAspectRatio)
         try container.encodeIfPresent(useGlobalGaps, forKey: .useGlobalGaps)
         try container.encodeIfPresent(innerGap, forKey: .innerGap)
-        try container.encodeIfPresent(outerGapTop, forKey: .outerGapTop)
-        try container.encodeIfPresent(outerGapBottom, forKey: .outerGapBottom)
-        try container.encodeIfPresent(outerGapLeft, forKey: .outerGapLeft)
-        try container.encodeIfPresent(outerGapRight, forKey: .outerGapRight)
     }
 }
 
@@ -96,8 +75,4 @@ struct ResolvedDwindleSettings: Equatable {
     let singleWindowAspectRatio: DwindleSingleWindowAspectRatio
     let useGlobalGaps: Bool
     let innerGap: CGFloat
-    let outerGapTop: CGFloat
-    let outerGapBottom: CGFloat
-    let outerGapLeft: CGFloat
-    let outerGapRight: CGFloat
 }

@@ -27,6 +27,9 @@ struct GeneralSettingsTab: View {
     @Bindable var controller: WMController
     let updateCoordinator: (any AppUpdateCoordinating)?
 
+    @State private var selectedGapMonitor: Monitor.ID?
+    @State private var connectedMonitors: [Monitor] = Monitor.current()
+
     var body: some View {
         let animationsEnabled = Binding(
             get: { controller.motionPolicy.animationsEnabled },
@@ -93,57 +96,101 @@ struct GeneralSettingsTab: View {
                 .onChange(of: settings.gapSize) { _, newValue in
                     controller.setGapSize(newValue)
                 }
+            }
 
-                Text("Outer Margins")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                SettingsSliderRow(
-                    label: "Left",
-                    value: $settings.outerGapLeft,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapLeft)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapLeft) { _, _ in
-                    syncOuterGaps()
+            Section("Outer Margins") {
+                Picker("Configure", selection: $selectedGapMonitor) {
+                    Text("Global Defaults").tag(nil as Monitor.ID?)
+                    ForEach(connectedMonitors, id: \.id) { monitor in
+                        Text(monitor.isMain ? "\(monitor.name) (Main)" : monitor.name)
+                            .tag(monitor.id as Monitor.ID?)
+                    }
                 }
 
-                SettingsSliderRow(
-                    label: "Right",
-                    value: $settings.outerGapRight,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapRight)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapRight) { _, _ in
-                    syncOuterGaps()
-                }
+                if let monitorId = selectedGapMonitor,
+                   let monitor = connectedMonitors.first(where: { $0.id == monitorId })
+                {
+                    OverridableSlider(
+                        label: "Left",
+                        value: settings.gapSettings(for: monitor)?.outerGapLeft,
+                        globalValue: settings.outerGapLeft,
+                        range: 0 ... 64,
+                        step: 1,
+                        formatter: { "\(Int($0)) px" },
+                        onChange: { v in updateGapSetting(for: monitor) { $0.outerGapLeft = v } },
+                        onReset: { updateGapSetting(for: monitor) { $0.outerGapLeft = nil } }
+                    )
+                    OverridableSlider(
+                        label: "Right",
+                        value: settings.gapSettings(for: monitor)?.outerGapRight,
+                        globalValue: settings.outerGapRight,
+                        range: 0 ... 64,
+                        step: 1,
+                        formatter: { "\(Int($0)) px" },
+                        onChange: { v in updateGapSetting(for: monitor) { $0.outerGapRight = v } },
+                        onReset: { updateGapSetting(for: monitor) { $0.outerGapRight = nil } }
+                    )
+                    OverridableSlider(
+                        label: "Top",
+                        value: settings.gapSettings(for: monitor)?.outerGapTop,
+                        globalValue: settings.outerGapTop,
+                        range: 0 ... 64,
+                        step: 1,
+                        formatter: { "\(Int($0)) px" },
+                        onChange: { v in updateGapSetting(for: monitor) { $0.outerGapTop = v } },
+                        onReset: { updateGapSetting(for: monitor) { $0.outerGapTop = nil } }
+                    )
+                    OverridableSlider(
+                        label: "Bottom",
+                        value: settings.gapSettings(for: monitor)?.outerGapBottom,
+                        globalValue: settings.outerGapBottom,
+                        range: 0 ... 64,
+                        step: 1,
+                        formatter: { "\(Int($0)) px" },
+                        onChange: { v in updateGapSetting(for: monitor) { $0.outerGapBottom = v } },
+                        onReset: { updateGapSetting(for: monitor) { $0.outerGapBottom = nil } }
+                    )
+                    SettingsCaption("Overrides the global margins for \(monitor.name). Top is measured from the screen's physical top edge.")
+                } else {
+                    SettingsSliderRow(
+                        label: "Left",
+                        value: $settings.outerGapLeft,
+                        range: 0 ... 64,
+                        step: 1,
+                        valueText: "\(Int(settings.outerGapLeft)) px",
+                        valueWidth: 64
+                    )
+                    .onChange(of: settings.outerGapLeft) { _, _ in syncOuterGaps() }
 
-                SettingsSliderRow(
-                    label: "Top",
-                    value: $settings.outerGapTop,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapTop)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapTop) { _, _ in
-                    syncOuterGaps()
-                }
+                    SettingsSliderRow(
+                        label: "Right",
+                        value: $settings.outerGapRight,
+                        range: 0 ... 64,
+                        step: 1,
+                        valueText: "\(Int(settings.outerGapRight)) px",
+                        valueWidth: 64
+                    )
+                    .onChange(of: settings.outerGapRight) { _, _ in syncOuterGaps() }
 
-                SettingsSliderRow(
-                    label: "Bottom",
-                    value: $settings.outerGapBottom,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapBottom)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapBottom) { _, _ in
-                    syncOuterGaps()
+                    SettingsSliderRow(
+                        label: "Top",
+                        value: $settings.outerGapTop,
+                        range: 0 ... 64,
+                        step: 1,
+                        valueText: "\(Int(settings.outerGapTop)) px",
+                        valueWidth: 64
+                    )
+                    .onChange(of: settings.outerGapTop) { _, _ in syncOuterGaps() }
+
+                    SettingsSliderRow(
+                        label: "Bottom",
+                        value: $settings.outerGapBottom,
+                        range: 0 ... 64,
+                        step: 1,
+                        valueText: "\(Int(settings.outerGapBottom)) px",
+                        valueWidth: 64
+                    )
+                    .onChange(of: settings.outerGapBottom) { _, _ in syncOuterGaps() }
                 }
             }
 
@@ -203,6 +250,9 @@ struct GeneralSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            connectedMonitors = Monitor.current()
+        }
     }
 
     private func syncOuterGaps() {
@@ -212,6 +262,18 @@ struct GeneralSettingsTab: View {
             top: settings.outerGapTop,
             bottom: settings.outerGapBottom
         )
+    }
+
+    private func updateGapSetting(for monitor: Monitor, _ update: (inout MonitorGapSettings) -> Void) {
+        var ms = settings.gapSettings(for: monitor) ?? MonitorGapSettings(
+            monitorName: monitor.name,
+            monitorDisplayId: monitor.displayId
+        )
+        ms.monitorName = monitor.name
+        ms.monitorDisplayId = monitor.displayId
+        update(&ms)
+        settings.updateGapSettings(ms)
+        controller.updateMonitorGapSettings()
     }
 }
 

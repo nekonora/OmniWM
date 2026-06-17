@@ -281,11 +281,7 @@ import QuartzCore
         defaultSplitRatio: CGFloat? = nil,
         splitWidthMultiplier: CGFloat? = nil,
         singleWindowAspectRatio: CGSize? = nil,
-        innerGap: CGFloat? = nil,
-        outerGapTop: CGFloat? = nil,
-        outerGapBottom: CGFloat? = nil,
-        outerGapLeft: CGFloat? = nil,
-        outerGapRight: CGFloat? = nil
+        innerGap: CGFloat? = nil
     ) {
         guard let controller, let engine = controller.dwindleEngine else { return }
         controller.workspaceManager.withEngineMutationScope {
@@ -294,10 +290,6 @@ import QuartzCore
             if let v = splitWidthMultiplier { engine.settings.splitWidthMultiplier = v }
             if let v = singleWindowAspectRatio { engine.settings.singleWindowAspectRatio = v }
             if let v = innerGap { engine.settings.innerGap = v }
-            if let v = outerGapTop { engine.settings.outerGapTop = v }
-            if let v = outerGapBottom { engine.settings.outerGapBottom = v }
-            if let v = outerGapLeft { engine.settings.outerGapLeft = v }
-            if let v = outerGapRight { engine.settings.outerGapRight = v }
         }
         controller.layoutRefreshController.requestRelayout(reason: .layoutConfigChanged)
     }
@@ -516,10 +508,6 @@ import QuartzCore
         engine.settings.splitWidthMultiplier = settings.splitWidthMultiplier
         engine.settings.singleWindowAspectRatio = settings.singleWindowAspectRatio.size
         engine.settings.innerGap = settings.innerGap
-        engine.settings.outerGapTop = settings.outerGapTop
-        engine.settings.outerGapBottom = settings.outerGapBottom
-        engine.settings.outerGapLeft = settings.outerGapLeft
-        engine.settings.outerGapRight = settings.outerGapRight
     }
 }
 

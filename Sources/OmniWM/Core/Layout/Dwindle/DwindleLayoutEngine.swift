@@ -52,10 +52,6 @@ final class DwindleLayoutEngine {
         }
         if !resolved.useGlobalGaps {
             effective.innerGap = resolved.innerGap
-            effective.outerGapTop = resolved.outerGapTop
-            effective.outerGapBottom = resolved.outerGapBottom
-            effective.outerGapLeft = resolved.outerGapLeft
-            effective.outerGapRight = resolved.outerGapRight
         }
         return effective
     }
@@ -417,7 +413,7 @@ final class DwindleLayoutEngine {
         invalidateMinSizeCache(for: workspaceId)
 
         var output: [WindowToken: CGRect] = [:]
-        let tilingArea = DwindleGapCalculator.applyOuterGapsOnly(rect: screen, settings: settings)
+        let tilingArea = screen
 
         if windowCount == 1 {
             let leaf = root.descendToFirstLeaf()

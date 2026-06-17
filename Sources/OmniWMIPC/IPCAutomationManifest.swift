@@ -324,6 +324,10 @@ public enum IPCAutomationManifest {
         "visible-frame",
         "has-notch",
         "orientation",
+        "outer-gap-left",
+        "outer-gap-right",
+        "outer-gap-top",
+        "outer-gap-bottom",
         "active-workspace"
     ]
 

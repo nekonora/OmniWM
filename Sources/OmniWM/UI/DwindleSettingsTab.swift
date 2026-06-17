@@ -191,54 +191,6 @@ private struct MonitorDwindleSettingsSection: View {
                     onChange: { newValue in updateSetting { $0.innerGap = newValue } },
                     onReset: { updateSetting { $0.innerGap = nil } }
                 )
-
-                Text("Outer Margins")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                OverridableSlider(
-                    label: "Left",
-                    value: ms.outerGapLeft,
-                    globalValue: settings.outerGapLeft,
-                    range: 0 ... 64,
-                    step: 1,
-                    formatter: { "\(Int($0)) px" },
-                    onChange: { newValue in updateSetting { $0.outerGapLeft = newValue } },
-                    onReset: { updateSetting { $0.outerGapLeft = nil } }
-                )
-
-                OverridableSlider(
-                    label: "Right",
-                    value: ms.outerGapRight,
-                    globalValue: settings.outerGapRight,
-                    range: 0 ... 64,
-                    step: 1,
-                    formatter: { "\(Int($0)) px" },
-                    onChange: { newValue in updateSetting { $0.outerGapRight = newValue } },
-                    onReset: { updateSetting { $0.outerGapRight = nil } }
-                )
-
-                OverridableSlider(
-                    label: "Top",
-                    value: ms.outerGapTop,
-                    globalValue: settings.outerGapTop,
-                    range: 0 ... 64,
-                    step: 1,
-                    formatter: { "\(Int($0)) px" },
-                    onChange: { newValue in updateSetting { $0.outerGapTop = newValue } },
-                    onReset: { updateSetting { $0.outerGapTop = nil } }
-                )
-
-                OverridableSlider(
-                    label: "Bottom",
-                    value: ms.outerGapBottom,
-                    globalValue: settings.outerGapBottom,
-                    range: 0 ... 64,
-                    step: 1,
-                    formatter: { "\(Int($0)) px" },
-                    onChange: { newValue in updateSetting { $0.outerGapBottom = newValue } },
-                    onReset: { updateSetting { $0.outerGapBottom = nil } }
-                )
             }
         }
     }
